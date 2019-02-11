@@ -934,6 +934,7 @@ void Node::StartSynchronization() {
   auto func = [this]() -> void {
     if (!GetOfflineLookups()) {
       LOG_GENERAL(WARNING, "Cannot rejoin currently");
+      std::exit(1);
       return;
     }
 
