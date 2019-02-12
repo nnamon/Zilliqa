@@ -543,7 +543,7 @@ bool Node::StartRetrieveHistory(const SyncType syncType,
         return false;
       }
     } else {
-      if (!GetOfflineLookups()) {
+      if (!GetOfflineLookups(1)) {
         LOG_GENERAL(WARNING, "Cannot fetch data from lookup node!");
         return false;
       }
@@ -932,9 +932,8 @@ void Node::StartSynchronization() {
 
   SetState(SYNC);
   auto func = [this]() -> void {
-    if (!GetOfflineLookups()) {
+    if (!GetOfflineLookups(1)) {
       LOG_GENERAL(WARNING, "Cannot rejoin currently");
-      std::exit(1);
       return;
     }
 
