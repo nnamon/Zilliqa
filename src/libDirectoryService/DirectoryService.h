@@ -26,6 +26,7 @@
 #include <set>
 #include <shared_mutex>
 
+#include "common/Constants.h"
 #include "common/Executable.h"
 #include "libConsensus/Consensus.h"
 #include "libCrypto/Schnorr.h"
@@ -206,6 +207,11 @@ class DirectoryService : public Executable {
       m_coinbaseRewardees;
   std::mutex m_mutexCoinbaseRewardees;
 
+  // DS Reputation
+  // Map<Public Key, Number of Co-Sigs> observed from the coinbase rewards.
+  std::map<PubKey, uint32_t> m_dsMemberPerformance;
+  std::mutex m_mutexDsMemberPerformance;
+
   // pow solutions
   std::vector<DSPowSolution> m_powSolutions;
   std::mutex m_mutexPowSolution;
@@ -273,7 +279,7 @@ class DirectoryService : public Executable {
                                         BlockHash& prevHash);
   void ComputeSharding(const VectorOfPoWSoln& sortedPoWSolns);
   void InjectPoWForDSNode(VectorOfPoWSoln& sortedPoWSolns,
-                          unsigned int numOfProposedDSMembers);
+                          std::map<PubKey, Peer>& powDSWinners);
 
   // Gas Pricer
   uint128_t GetNewGasPrice();
@@ -284,6 +290,7 @@ class DirectoryService : public Executable {
 
   bool VerifyPoWWinner(const MapOfPubKeyPoW& dsWinnerPoWsFromLeader);
   bool VerifyDifficulty();
+  bool VerifyRemovedByzantineNodes();
   bool VerifyPoWOrdering(const DequeOfShard& shards,
                          const MapOfPubKeyPoW& allPoWsFromLeader,
                          const MapOfPubKeyPoW& priorityNodePoWs);
@@ -291,6 +298,11 @@ class DirectoryService : public Executable {
                            const PoWSolution& powSoln);
   bool VerifyNodePriority(const DequeOfShard& shards,
                           MapOfPubKeyPoW& priorityNodePoWs);
+
+  // DS Reputation
+  void SaveDSPerformance();
+  unsigned int InjectByzantineNodes(unsigned int numOfProposedDSMembers,
+                                    std::map<PubKey, Peer>& powDSWinners);
 
   // internal calls from RunConsensusOnDSBlock
   bool RunConsensusOnDSBlockWhenDSPrimary();
@@ -305,7 +317,7 @@ class DirectoryService : public Executable {
                                const unsigned int& my_shards_lo,
                                const unsigned int& my_shards_hi);
   void UpdateMyDSModeAndConsensusId();
-  void UpdateDSCommiteeComposition();
+  void UpdateDSCommitteeComposition();
 
   void ProcessDSBlockConsensusWhenDone();
 
