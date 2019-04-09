@@ -41,7 +41,7 @@ BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   PubKey selfPubKey = selfKeyPair.second;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
-                      "Expected: 127.0.0.1. Result: " + result);
+                      "Expected: 127.0.0.1. Result: " << selfPubKey);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
