@@ -43,15 +43,13 @@ struct F {
   F() {
     BOOST_TEST_MESSAGE("setup fixture");
 
-    Schnorr& schnorr = Schnorr::GetInstance();
-
     // Generate the self key.
-    selfKeyPair = schnorr.GenKeyPair();
+    selfKeyPair = Schnorr::GetInstance().GenKeyPair();
     selfPubKey = selfKeyPair.second;
 
     // Generate the DS Committee.
     for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-      PairOfKey kp = schnorr.GenKeyPair();
+      PairOfKey kp = Schnorr::GetInstance().GenKeyPair();
       PubKey pk = kp.second;
       Peer peer = Peer(LOCALHOST, BASE_PORT + i);
       PairOfNode entry = std::make_pair(pk, peer);
