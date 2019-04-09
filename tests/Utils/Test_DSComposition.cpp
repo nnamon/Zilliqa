@@ -36,7 +36,8 @@
 #define NUM_OF_REMOVED 2
 #define LOCALHOST 0x7F000001
 #define BASE_PORT 2600
-#define EPOCH_NUM 5
+#define BLOCK_NUM 1
+#define EPOCH_NUM 1
 #define DS_DIFF 1
 #define SHARD_DIFF 1
 #define GAS_PRICE 1
@@ -81,7 +82,7 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   // Construct the fake DS Block.
   PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
   PubKey leaderPubKey = leaderKeyPair.second;
-  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, EPOCH_NUM, EPOCH_NUM,
+  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
                        GAS_PRICE, SWInfo(), winners, DSBlockHashSet());
   DSBlock block;
 
