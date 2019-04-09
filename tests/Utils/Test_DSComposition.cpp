@@ -43,14 +43,13 @@ struct F {
   F() {
     BOOST_TEST_MESSAGE("setup fixture");
 
-    schnorr = Schnorr::GetInstance();
+    Schnorr& schnorr = Schnorr::GetInstance();
 
     // Generate the self key.
-    PairOfKey selfKeyPair = schnorr.GenKeyPair();
-    PubKey selfPubKey = selfKeyPair.second;
+    selfKeyPair = schnorr.GenKeyPair();
+    selfPubKey = selfKeyPair.second;
 
     // Generate the DS Committee.
-    DequeOfNode dsComm;
     for (int i = 0; i < COMMITTEE_SIZE; ++i) {
       PairOfKey kp = schnorr.GenKeyPair();
       PubKey pk = kp.second;
@@ -61,7 +60,6 @@ struct F {
   }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
-  Schnorr& schnorr;
   PairOfKey selfKeyPair;
   PubKey selfPubKey;
   DequeOfNode dsComm;
