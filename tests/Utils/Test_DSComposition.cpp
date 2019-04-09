@@ -72,6 +72,8 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
 
   // Construct the fake DS Block.
   DSBlockHeader header;
+  std::map<PubKey, Peer> pp;
+  header.m_PoWDSWinners = pp;
   DSBlock block;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
