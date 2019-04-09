@@ -43,13 +43,15 @@ struct F {
   F() {
     BOOST_TEST_MESSAGE("setup fixture");
 
+    schnorr = Schnorr::GetInstance();
+
     // Generate the self key.
-    selfKeyPair = Schnorr::GetInstance().GenKeyPair();
+    selfKeyPair = schnorr.GenKeyPair();
     selfPubKey = selfKeyPair.second;
 
     // Generate the DS Committee.
     for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-      PairOfKey kp = Schnorr::GetInstance().GenKeyPair();
+      PairOfKey kp = schnorr.GenKeyPair();
       PubKey pk = kp.second;
       Peer peer = Peer(LOCALHOST, BASE_PORT + i);
       PairOfNode entry = std::make_pair(pk, peer);
@@ -58,6 +60,7 @@ struct F {
   }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
+  Schnorr& schnorr;
   PairOfKey selfKeyPair;
   PubKey selfPubKey;
   DequeOfNode dsComm;
@@ -67,20 +70,6 @@ struct F {
 // above the DS committee size.
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
-
-  // Generate the self key.
-  PairOfKey selfKeyPair = schnorr.GenKeyPair();
-  PubKey selfPubKey = selfKeyPair.second;
-
-  // Generate the DS Committee.
-  DequeOfNode dsComm;
-  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-    PairOfKey kp = schnorr.GenKeyPair();
-    PubKey pk = kp.second;
-    Peer peer = Peer(LOCALHOST, BASE_PORT + i);
-    PairOfNode entry = std::make_pair(pk, peer);
-    dsComm.emplace_back(entry);
-  }
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);
