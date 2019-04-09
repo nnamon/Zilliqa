@@ -92,6 +92,10 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
                        GAS_PRICE, SWInfo(), winners, DSBlockHashSet());
   DSBlock block(header, CoSignatures());
 
+  // Update the DS Composition.
+  InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
+  // Check the result.
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);
 }
