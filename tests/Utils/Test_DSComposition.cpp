@@ -43,7 +43,7 @@ struct F {
   F() : { BOOST_TEST_MESSAGE("setup fixture"); }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
-}
+};
 
 // Test the original behaviour: nodes expire by having their index incremented
 // above the DS committee size.
