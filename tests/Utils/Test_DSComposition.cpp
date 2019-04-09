@@ -17,6 +17,7 @@
 
 #include <string>
 #include "libCrypto/Schnorr.h"
+#include "libData/BlockData/Block.h"
 #include "libNetwork/ShardStruct.h"
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
@@ -56,6 +57,7 @@ struct F {
       dsComm.emplace_back(entry);
     }
   }
+
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
   PairOfKey selfKeyPair;
@@ -67,6 +69,8 @@ struct F {
 // above the DS committee size.
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
+
+  DSBlock test;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);

@@ -60,7 +60,7 @@ add_test(NAME Test_IPConverter COMMAND Test_IPConverter)
 
 add_executable(Test_DSComposition Test_DSComposition.cpp)
 target_include_directories(Test_DSComposition PUBLIC ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(Test_DSComposition LINK_PUBLIC Utils Crypto Network)
+target_link_libraries(Test_DSComposition LINK_PUBLIC Utils Crypto Network Data)
 add_test(NAME Test_DSComposition COMMAND Test_DSComposition)
 
 add_executable(Test_SafeMath Test_SafeMath.cpp)
