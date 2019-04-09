@@ -43,7 +43,7 @@ struct F {
   F() {
     BOOST_TEST_MESSAGE("setup fixture");
 
-    schnorr = Schnorr::GetInstance();
+    Schnorr& schnorr = Schnorr::GetInstance();
 
     // Generate the self key.
     selfKeyPair = schnorr.GenKeyPair();
@@ -60,7 +60,6 @@ struct F {
   }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
-  Schnorr& schnorr;
   PairOfKey selfKeyPair;
   PubKey selfPubKey;
   DequeOfNode dsComm;
