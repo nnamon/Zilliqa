@@ -38,7 +38,7 @@ BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   INIT_STDOUT_LOGGER();
 
   Schnorr& schnorr = Schnorr::GetInstance();
-| PairOfKey selfKeyPair = schnorr.GenKeyPair();
+  PairOfKey selfKeyPair = schnorr.GenKeyPair();
   PubKey selfPubKey = selfKeyPair.second;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
