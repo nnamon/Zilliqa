@@ -32,6 +32,8 @@
 #define COMMITTEE_SIZE 20
 #define NUM_OF_ELECTED 5
 #define NUM_OF_REMOVED 2
+#define LOCALHOST 0x7F000001
+#define BASE_PORT 2600
 
 using namespace std;
 
@@ -53,7 +55,7 @@ BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   for (int i = 0; i < COMMITTEE_SIZE; ++i) {
     PairOfKey kp = schnorr.GenKeyPair();
     PubKey pk = kp.second;
-    Peer peer = Peer();
+    Peer peer = Peer(LOCALHOST, BASE_PORT + i);
     PairOfNode entry = std::make_pair(pk, peer);
     dsComm.emplace_back(entry);
   }
