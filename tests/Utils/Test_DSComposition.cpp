@@ -40,7 +40,7 @@ using namespace std;
 BOOST_AUTO_TEST_SUITE(dscomposition)
 
 struct F {
-  F() : { BOOST_TEST_MESSAGE("setup fixture"); }
+  F() { BOOST_TEST_MESSAGE("setup fixture"); }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
 };
