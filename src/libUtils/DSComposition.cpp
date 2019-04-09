@@ -27,13 +27,12 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
   // Get the map of all pow winners from the DS Block
   const std::map<PubKey, Peer> NewDSMembers =
       dsblock.GetHeader().GetDSPoWWinners();
-  DequeOfNode::iterator it;
   unsigned int NumWinners = 0;
 
   for (const auto& DSPowWinner : NewDSMembers) {
     // Check if the current pow candidate is an existing DS Committee member.
     // ('loser') and find its index.
-    for (it = dsComm.begin(); it != dsComm.end(); ++it) {
+    for (auto& it = dsComm.begin(); it != dsComm.end(); ++it) {
       if (DSPowWinner.first == it->first) {
         break;
       }
