@@ -19,6 +19,7 @@
 #include "libCrypto/Schnorr.h"
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
+#include "libNetwork/ShardStruct.h"
 
 #define BOOST_TEST_MODULE dscomposition
 #define BOOST_TEST_DYN_LINK
@@ -38,8 +39,13 @@ BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   INIT_STDOUT_LOGGER();
 
   Schnorr& schnorr = Schnorr::GetInstance();
+
+  // Generate the self key.
   PairOfKey selfKeyPair = schnorr.GenKeyPair();
   PubKey selfPubKey = selfKeyPair.second;
+
+  // Generate the DS Committee.
+  DequeOfNode dsComm;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);
