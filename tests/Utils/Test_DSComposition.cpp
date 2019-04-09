@@ -20,7 +20,7 @@
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
 
-#define BOOST_TEST_MODULE ipconverter
+#define BOOST_TEST_MODULE dscomposition
 #define BOOST_TEST_DYN_LINK
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -37,7 +37,8 @@ BOOST_AUTO_TEST_SUITE(dscomposition)
 BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   INIT_STDOUT_LOGGER();
 
-  PairOfKey selfKeyPair = Schnorr::GetInstance().GenKeyPair();
+  Schnorr& schnorr = Schnorr::GetInstance();
+| PairOfKey selfKeyPair = schnorr.GenKeyPair();
   PubKey selfPubKey = selfKeyPair.second;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
