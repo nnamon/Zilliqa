@@ -17,9 +17,9 @@
 
 #include <string>
 #include "libCrypto/Schnorr.h"
+#include "libNetwork/ShardStruct.h"
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
-#include "libNetwork/ShardStruct.h"
 
 #define BOOST_TEST_MODULE dscomposition
 #define BOOST_TEST_DYN_LINK
@@ -28,6 +28,10 @@
 #include <boost/multiprecision/cpp_int.hpp>
 #pragma GCC diagnostic pop
 #include <boost/test/unit_test.hpp>
+
+#define COMMITTEE_SIZE 20
+#define NUM_OF_ELECTED 5
+#define NUM_OF_REMOVED 2
 
 using namespace std;
 
@@ -46,6 +50,13 @@ BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
 
   // Generate the DS Committee.
   DequeOfNode dsComm;
+  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
+    PairOfKey kp = schnorr.GenKeyPair();
+    PubKey pk = kp.second;
+    Peer peer = Peer();
+    PairOfNode entry = std::make_pair(pk, peer);
+    dsComm.emplace_back(entry);
+  }
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);
