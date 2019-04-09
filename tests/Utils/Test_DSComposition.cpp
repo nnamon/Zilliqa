@@ -42,6 +42,9 @@ BOOST_AUTO_TEST_SUITE(dscomposition)
 struct F {
   F() {
     BOOST_TEST_MESSAGE("setup fixture");
+
+    schnorr = Schnorr::GetInstance();
+
     // Generate the self key.
     PairOfKey selfKeyPair = schnorr.GenKeyPair();
     PubKey selfPubKey = selfKeyPair.second;
@@ -58,6 +61,7 @@ struct F {
   }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
+  Schnorr& schnorr;
   PairOfKey selfKeyPair;
   PubKey selfPubKey;
   DequeOfNode dsComm;
@@ -67,8 +71,6 @@ struct F {
 // above the DS committee size.
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
-
-  Schnorr& schnorr = Schnorr::GetInstance();
 
   // Generate the self key.
   PairOfKey selfKeyPair = schnorr.GenKeyPair();
