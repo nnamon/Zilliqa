@@ -21,6 +21,7 @@
 #include "libNetwork/ShardStruct.h"
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
+#include "libUtils/SWInfo.h"
 
 #define BOOST_TEST_MODULE dscomposition
 #define BOOST_TEST_DYN_LINK
@@ -35,6 +36,7 @@
 #define NUM_OF_REMOVED 2
 #define LOCALHOST 0x7F000001
 #define BASE_PORT 2600
+#define BLOCK_NUM 5
 
 using namespace std;
 
@@ -71,9 +73,10 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
 
   // Construct the fake DS Block.
-  DSBlockHeader header;
+  PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
+  PubKey leaderPubKey = leaderKeyPair.second;
   std::map<PubKey, Peer> pp;
-  header.m_PoWDSWinners = pp;
+  DSBlockHeader header(0, 0, leaderPubKey, BLOCK_NUM, BLOCK_NUM, 0, SWInfo(), pp, DSBlockHashSet());
   DSBlock block;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
