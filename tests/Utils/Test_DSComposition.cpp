@@ -70,7 +70,9 @@ struct F {
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
 
-  DSBlock test;
+  // Construct the fake DS Block.
+  DSBlockHeader header;
+  DSBlock block;
 
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " << selfPubKey);
