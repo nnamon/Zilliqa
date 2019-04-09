@@ -39,9 +39,15 @@ using namespace std;
 
 BOOST_AUTO_TEST_SUITE(dscomposition)
 
+struct F {
+  F() : { BOOST_TEST_MESSAGE("setup fixture"); }
+  ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
+
+}
+
 // Test the original behaviour: nodes expire by having their index incremented
 // above the DS committee size.
-BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
+BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
 
   Schnorr& schnorr = Schnorr::GetInstance();
