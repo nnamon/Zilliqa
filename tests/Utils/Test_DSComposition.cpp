@@ -16,7 +16,7 @@
  */
 
 #include <string>
-#include "libUtils/IPConverter.h"
+#include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
 
 #define BOOST_TEST_MODULE ipconverter
@@ -29,27 +29,14 @@
 
 using namespace std;
 
-BOOST_AUTO_TEST_SUITE(ipconverter)
+BOOST_AUTO_TEST_SUITE(dscomposition)
 
 BOOST_AUTO_TEST_CASE(test_IPNumericaltoString) {
   INIT_STDOUT_LOGGER();
 
-  std::string result = IPConverter::ToStrFromNumericalIP(
-      (boost::multiprecision::uint128_t)16777343);
+  std::string result = "127.0.0.1";
   BOOST_CHECK_MESSAGE(result == "127.0.0.1",
                       "Expected: 127.0.0.1. Result: " + result);
-}
-
-BOOST_AUTO_TEST_CASE(test_IPStringToNumerical) {
-  INIT_STDOUT_LOGGER();
-
-  boost::multiprecision::uint128_t result;
-  BOOST_CHECK_MESSAGE(IPConverter::ToNumericalIPFromStr("127.0.0.1", result),
-                      "Conversion from IP "
-                          << "127.0.0.1"
-                          << " to integer failed.");
-  BOOST_CHECK_MESSAGE(result == 16777343, "Expected: 16777343. Result: " +
-                                              result.convert_to<std::string>());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
