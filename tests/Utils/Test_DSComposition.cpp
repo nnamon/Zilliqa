@@ -16,6 +16,7 @@
  */
 
 #include <string>
+#include "libCrypto/Schnorr.h"
 #include "libUtils/DSComposition.h"
 #include "libUtils/Logger.h"
 
@@ -31,11 +32,15 @@ using namespace std;
 
 BOOST_AUTO_TEST_SUITE(dscomposition)
 
-BOOST_AUTO_TEST_CASE(test_IPNumericaltoString) {
+// Test the original behaviour: nodes expire by having their index incremented
+// above the DS committee size.
+BOOST_AUTO_TEST_CASE(test_UpdateWithoutRemovals) {
   INIT_STDOUT_LOGGER();
 
-  std::string result = "127.0.0.1";
-  BOOST_CHECK_MESSAGE(result == "127.0.0.1",
+  PairOfKey selfKeyPair = Schnorr::GetInstance().GenKeyPair();
+  PubKey selfPubKey = selfKeyPair.second;
+
+  BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
                       "Expected: 127.0.0.1. Result: " + result);
 }
 
