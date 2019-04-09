@@ -78,6 +78,12 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
 
   // Create the winners
   std::map<PubKey, Peer> winners;
+  for (int i = 0; i < NUM_OF_ELECTED; ++i) {
+    PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
+    PubKey candidatePubKey = leaderKeyPair.second;
+    Peer candidatePeer = Peer(LOCALHOST, BASE_PORT + COMMITTEE_SIZE + i);
+    winners[candidatePubKey] = candidatePeer;
+  }
 
   // Construct the fake DS Block.
   PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
