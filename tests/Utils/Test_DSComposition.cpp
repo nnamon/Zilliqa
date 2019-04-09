@@ -40,9 +40,27 @@ using namespace std;
 BOOST_AUTO_TEST_SUITE(dscomposition)
 
 struct F {
-  F() { BOOST_TEST_MESSAGE("setup fixture"); }
+  F() {
+    BOOST_TEST_MESSAGE("setup fixture");
+    // Generate the self key.
+    PairOfKey selfKeyPair = schnorr.GenKeyPair();
+    PubKey selfPubKey = selfKeyPair.second;
+
+    // Generate the DS Committee.
+    DequeOfNode dsComm;
+    for (int i = 0; i < COMMITTEE_SIZE; ++i) {
+      PairOfKey kp = schnorr.GenKeyPair();
+      PubKey pk = kp.second;
+      Peer peer = Peer(LOCALHOST, BASE_PORT + i);
+      PairOfNode entry = std::make_pair(pk, peer);
+      dsComm.emplace_back(entry);
+    }
+  }
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
 
+  PairOfKey selfKeyPair;
+  PubKey selfPubKey;
+  DequeOfNode dsComm;
 };
 
 // Test the original behaviour: nodes expire by having their index incremented
