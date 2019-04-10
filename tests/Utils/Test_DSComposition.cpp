@@ -95,17 +95,26 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
 
   // Build the expected composition.
   DequeOfNode expectedDSComm;
+  // Put the winners in front.
   for (const auto& i : winners) {
     expectedDSComm.emplace_back(i);
+  }
+  // Shift the existing members less NUM_OF_ELECTED to the back of the deque.
+  for (int i = 0; i < (COMMITTEE_SIZE - NUM_OF_ELECTED); ++i) {
+    expectedDSComm.emplace_back(dsComm.at(i));
   }
 
   // Update the DS Composition.
   InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
 
-
   // Check the result.
-  BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
-                      "Expected: 127.0.0.1. Result: " << selfPubKey);
+  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
+    // Compare the public keys.
+    PubKey actual = dsComm.at(i).first;
+    PubKey expected = expectedDSComm.at(i).first;
+    BOOST_CHECK_MESSAGE(actual == expected,
+                        "Expected: " expected << ". Result: " << actual);
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
