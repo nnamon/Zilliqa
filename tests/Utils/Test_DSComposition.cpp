@@ -183,22 +183,24 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
   // Create the 'winners'. Note: NUM_OF_REMOVED existing members of the DS
   // Committee, hence there are removals.
   std::map<PubKey, Peer> winners;
+  std::map<PubKey, Peer> candidates;
   for (int i = 0; i < NUM_OF_ELECTED; ++i) {
     PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
     PubKey candidatePubKey = candidateKeyPair.second;
     Peer candidatePeer = Peer(LOCALHOST, BASE_PORT + COMMITTEE_SIZE + i);
     winners[candidatePubKey] = candidatePeer;
+    candidates[candidatePubKey] = candidatePeer;
   }
   for (int i = 0; i < NUM_OF_REMOVED; ++i) {
     PairOfNode kp = dsComm.at(i);
-    winners[kp.first] = kp.second;
+    candidates[kp.first] = kp.second;
   }
 
   // Construct the fake DS Block.
   PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
   PubKey leaderPubKey = leaderKeyPair.second;
   DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
-                       GAS_PRICE, SWInfo(), winners, DSBlockHashSet());
+                       GAS_PRICE, SWInfo(), candidates, DSBlockHashSet());
   DSBlock block(header, CoSignatures());
 
   // Build the expected composition.
