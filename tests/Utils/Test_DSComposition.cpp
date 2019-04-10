@@ -97,7 +97,8 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   DequeOfNode expectedDSComm;
   // Put the winners in front.
   for (const auto& i : winners) {
-    expectedDSComm.emplace_back(i);
+    // New additions are always placed at the beginning.
+    expectedDSComm.emplace_front(i);
   }
   // Shift the existing members less NUM_OF_ELECTED to the back of the deque.
   for (int i = 0; i < (COMMITTEE_SIZE - NUM_OF_ELECTED); ++i) {
