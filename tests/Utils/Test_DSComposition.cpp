@@ -155,7 +155,7 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutWinners, F) {
 }
 
 // Test the new behaviour: remove Byzantine nodes.
-BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
+BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
   INIT_STDOUT_LOGGER();
 
   // Create the 'winners'. Note: NUM_OF_REMOVED existing members of the DS
