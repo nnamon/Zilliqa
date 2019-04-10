@@ -76,7 +76,8 @@ struct F {
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
 
-  // Create the winners.
+  // Create the winners. Note: no existing members of the DS Committee, hence no
+  // removals.
   std::map<PubKey, Peer> winners;
   for (int i = 0; i < NUM_OF_ELECTED; ++i) {
     PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
@@ -92,8 +93,15 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
                        GAS_PRICE, SWInfo(), winners, DSBlockHashSet());
   DSBlock block(header, CoSignatures());
 
+  // Build the expected composition.
+  DequeOfNode expectedDSComm;
+  for (const auto& i : winners) {
+    expectedDSComm.emplace_back(i);
+  }
+
   // Update the DS Composition.
   InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
 
   // Check the result.
   BOOST_CHECK_MESSAGE(selfPubKey == selfPubKey,
