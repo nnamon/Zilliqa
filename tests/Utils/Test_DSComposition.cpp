@@ -105,8 +105,19 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
     expectedDSComm.emplace_back(dsComm.at(i));
   }
 
+  // Check expected commmitee size.
+  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
+                      "Expected DS Committee size wrong. Actual: "
+                          << expectedDSComm.size()
+                          << ". Expected: " << COMMITTEE_SIZE);
+
   // Update the DS Composition.
   InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
+  // Check updated commmitee size.
+  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
+                      "Updated DS Committee size wrong. Actual: "
+                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
 
   // Check the result.
   for (int i = 0; i < COMMITTEE_SIZE; ++i) {
@@ -140,8 +151,19 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutWinners, F) {
     expectedDSComm.emplace_back(dsComm.at(i));
   }
 
+  // Check expected commmitee size.
+  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
+                      "Expected DS Committee size wrong. Actual: "
+                          << expectedDSComm.size()
+                          << ". Expected: " << COMMITTEE_SIZE);
+
   // Update the DS Composition.
   InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
+  // Check updated commmitee size.
+  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
+                      "Updated DS Committee size wrong. Actual: "
+                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
 
   // Check the result.
   for (int i = 0; i < COMMITTEE_SIZE; ++i) {
@@ -193,8 +215,19 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
     expectedDSComm.emplace_back(dsComm.at(i));
   }
 
+  // Check expected commmitee size.
+  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
+                      "Expected DS Committee size wrong. Actual: "
+                          << expectedDSComm.size()
+                          << ". Expected: " << COMMITTEE_SIZE);
+
   // Update the DS Composition.
   InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
+  // Check updated commmitee size.
+  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
+                      "Updated DS Committee size wrong. Actual: "
+                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
 
   // Check the result.
   for (int i = 0; i < COMMITTEE_SIZE; ++i) {
