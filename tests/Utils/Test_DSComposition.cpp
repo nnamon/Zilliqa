@@ -186,8 +186,10 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
     // New additions are always placed at the beginning.
     expectedDSComm.emplace_front(i);
   }
-  // Shift the existing members less NUM_OF_ELECTED to the back of the deque.
-  for (int i = 0; i < (COMMITTEE_SIZE - NUM_OF_ELECTED); ++i) {
+  // Shift the existing non-removed and non-expired members to the back of the
+  // deque.
+  for (int i = NUM_OF_REMOVED;
+       i < (COMMITTEE_SIZE - (NUM_OF_ELECTED - NUM_OF_REMOVED)); ++i) {
     expectedDSComm.emplace_back(dsComm.at(i));
   }
 
