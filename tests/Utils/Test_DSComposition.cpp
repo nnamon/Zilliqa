@@ -212,7 +212,8 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
   }
   // Shift the existing non-removed and non-expired members to the back of the
   // deque.
-  for (int i = NUM_OF_REMOVED; i < (COMMITTEE_SIZE - NUM_OF_ELECTED); ++i) {
+  for (int i = NUM_OF_REMOVED;
+       i < (COMMITTEE_SIZE - (NUM_OF_ELECTED - NUM_OF_REMOVED)); ++i) {
     expectedDSComm.emplace_back(dsComm.at(i));
   }
 
