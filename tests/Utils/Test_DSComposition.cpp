@@ -119,4 +119,39 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   }
 }
 
+// Test that the composition does not change when the winners is empty.
+BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutWinners, F) {
+  INIT_STDOUT_LOGGER();
+
+  // Create the empty winners map.
+  std::map<PubKey, Peer> winners;
+
+  // Construct the fake DS Block.
+  PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
+  PubKey leaderPubKey = leaderKeyPair.second;
+  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
+                       GAS_PRICE, SWInfo(), winners, DSBlockHashSet());
+  DSBlock block(header, CoSignatures());
+
+  // Build the expected composition.
+  DequeOfNode expectedDSComm;
+  // Copy the existing members.
+  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
+    expectedDSComm.emplace_back(dsComm.at(i));
+  }
+
+  // Update the DS Composition.
+  InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
+
+  // Check the result.
+  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
+    // Compare the public keys.
+    PubKey actual = dsComm.at(i).first;
+    PubKey expected = expectedDSComm.at(i).first;
+    BOOST_CHECK_MESSAGE(
+        actual == expected,
+        "Index: " << i << ". Expected: " << expected << ". Result: " << actual);
+  }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
