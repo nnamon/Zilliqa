@@ -112,8 +112,9 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
     // Compare the public keys.
     PubKey actual = dsComm.at(i).first;
     PubKey expected = expectedDSComm.at(i).first;
-    BOOST_CHECK_MESSAGE(actual == expected,
-                        "Expected: " << expected << ". Result: " << actual);
+    BOOST_CHECK_MESSAGE(
+        actual == expected,
+        "Index: " << i << ". Expected: " << expected << ". Result: " << actual);
   }
 }
 
