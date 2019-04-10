@@ -76,7 +76,7 @@ struct F {
 BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
   INIT_STDOUT_LOGGER();
 
-  // Create the winners
+  // Create the winners.
   std::map<PubKey, Peer> winners;
   for (int i = 0; i < NUM_OF_ELECTED; ++i) {
     PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
