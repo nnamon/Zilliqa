@@ -43,6 +43,8 @@
 using namespace std;
 using namespace boost::multiprecision;
 
+#define REMOVED_FIELD_DSBLOCK_VERSION 2
+
 unsigned int DirectoryService::ComputeDSBlockParameters(
     const VectorOfPoWSoln& sortedDSPoWSolns, VectorOfPoWSoln& sortedPoWSolns,
     map<PubKey, Peer>& powDSWinners, MapOfPubKeyPoW& dsWinnerPoWs,
@@ -1186,10 +1188,16 @@ bool DirectoryService::DSBlockValidator(
     return false;
   }
 
-  // Verify the injected Byzantine nodes to be removed in the winners list.
-  if (!VerifyRemovedByzantineNodes()) {
-    LOG_GENERAL(WARNING, "Failed to verify the Byzantine nodes to be removed");
-    return false;
+  // Check if the current block version to be validated requires removed nodes
+  // validation.
+  if (m_pendingDSBlock->GetHeader().GetVersion() >=
+      REMOVED_FIELD_DSBLOCK_VERSION) {
+    // Verify the injected Byzantine nodes to be removed in the winners list.
+    if (!VerifyRemovedByzantineNodes()) {
+      LOG_GENERAL(WARNING,
+                  "Failed to verify the Byzantine nodes to be removed");
+      return false;
+    }
   }
 
   // Start to verify difficulty from DS block number 2.
