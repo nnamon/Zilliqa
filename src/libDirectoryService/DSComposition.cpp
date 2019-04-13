@@ -54,7 +54,7 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
             << RemovedNode);
 
     // Only reorders the Committee. The size is not changed.
-    dsComm.emplace_back(it);
+    dsComm.emplace_back(*it);
 
     // Move the candidate to the back of the committee and continue processing
     // other candidates.
