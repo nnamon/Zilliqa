@@ -439,6 +439,11 @@ bool DirectoryService::VerifyDifficulty() {
 
 bool DirectoryService::VerifyRemovedByzantineNodes() {
   LOG_MARKER();
+
+  // Get the list of proposed DS members
+  const auto& powWinners = m_pendingDSBlock->GetHeader().GetDSPoWWinners();
+  unsigned int numOfProposedMembers = powWinners.size();
+
   // Get the list of DS members to remove
   const auto& removeDSNodePubkeys =
       m_pendingDSBlock->GetHeader().GetDSRemovePubKeys();
@@ -463,11 +468,11 @@ bool DirectoryService::VerifyRemovedByzantineNodes() {
 
   // Check that all of the nodes we computed to remove are present in the
   // proposed DS block.
-  for (const auto& member : comparedToBeRemoved) {
+  for (const auto& pubkey : comparedToBeRemoved) {
     if (std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
-                  member.first) == removeDSNodePubkeys.end()) {
+                  pubkey) == removeDSNodePubkeys.end()) {
       LOG_GENERAL(WARNING, "Expected "
-                               << member.first
+                               << pubkey
                                << " to be proposed for removal but could not "
                                   "find it in the proposed DS block");
       return false;
