@@ -253,7 +253,7 @@ void DirectoryService::InjectPoWForDSNode(
     }
 
     // Check if the current member is a node to be removed.
-    if (removeDSNodePubkeys.find(rit->first) != removeDSNodePubkeys.end()) {
+    if (std::find(removeDSNodePubkeys, rit->first) != removeDSNodePubkeys.end()) {
       // If it is, continue onto the next member.
       continue;
     }
