@@ -205,6 +205,7 @@ BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
   }
 
   // Create the nodes to be removed.
+  std::vector<PubKey> removeDSNodePubkeys;
 
   // Construct the fake DS Block.
   PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
