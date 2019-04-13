@@ -31,8 +31,8 @@ DSBlockHeader::DSBlockHeader()
       m_gasPrice(0),
       m_swInfo(),
       m_PoWDSWinners(),
-      m_hashset(),
-      m_DSRemoved() {}
+      m_DSRemoved(),
+      m_hashset() {}
 
 DSBlockHeader::DSBlockHeader(const bytes& src, unsigned int offset) {
   if (!Deserialize(src, offset)) {
@@ -111,7 +111,9 @@ const map<PubKey, Peer>& DSBlockHeader::GetDSPoWWinners() const {
   return m_PoWDSWinners;
 }
 
-const std::vector<PubKey>& DSBlockHeader::GetDSRemoved() const { return m_DSRemoved; }
+const std::vector<PubKey>& DSBlockHeader::GetDSRemoved() const {
+  return m_DSRemoved;
+}
 
 const ShardingHash& DSBlockHeader::GetShardingHash() const {
   return m_hashset.m_shardingHash;
