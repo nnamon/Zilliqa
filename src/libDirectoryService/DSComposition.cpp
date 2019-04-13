@@ -26,30 +26,42 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
 
   // Get the map of all pow winners from the DS Block
   const auto& NewDSMembers = dsblock.GetHeader().GetDSPoWWinners();
-  DequeOfNode::iterator it;
-  unsigned int NumWinners = 0;
+  unsigned int NumWinners = NewDSMembers.size();
 
-  for (const auto& DSPowWinner : NewDSMembers) {
-    // Check if the current pow candidate is an existing DS Committee member.
-    // ('loser') and find its index.
-    for (it = dsComm.begin(); it != dsComm.end(); ++it) {
-      if (DSPowWinner.first == it->first) {
-        break;
-      }
-    }
-    if (it != dsComm.end()) {
-      LOG_GENERAL(
-          INFO,
-          "Shuffling non-performant node to the back of the DS Composition: "
-              << DSPowWinner.first);
-      // Move the candidate to the back of the committee and continue processing
-      // other candidates.
-      dsComm.erase(it);
-      // Only reorders the Committee. The size is not changed.
-      dsComm.emplace_back(DSPowWinner);
+  // Get the vector of all non-performant nodes to be removed.
+  const auto& removeDSNodePubkeys = dsblock.GetHeader().GetDSRemovePubKeys();
+
+  // Shuffle the non-performant nodes to the back.
+  DequeOfNode::iterator it;
+  for (const auto& RemovedNode : removeDSNodePubkeys) {
+
+    // Find the pubkey in our view of the DS Committee.
+    it = dsComm.find(RemovedNode);
+    if (it == dsComm.end()) {
+      LOG_GENERAL(WARNING,
+                  "[FATAL] The DS member "
+                      << RemovedNode
+                      << " for removal was not found in our DS Committee.");
       continue;
     }
 
+    LOG_GENERAL(
+        INFO,
+        "Shuffling non-performant node to the back of the DS Composition: "
+            << RemovedNode);
+
+    // Only reorders the Committee. The size is not changed.
+    dsComm.emplace_back(it);
+
+    // Move the candidate to the back of the committee and continue processing
+    // other candidates.
+    dsComm.erase(it);
+
+    continue;
+  }
+
+  // Add the new winners.
+  for (const auto& DSPowWinner : NewDSMembers) {
     // If the current iterated winner is my node.
     if (selfKeyPub == DSPowWinner.first) {
       if (!GUARD_MODE) {
@@ -77,9 +89,6 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
         dsComm.emplace(it, DSPowWinner);
       }
     }
-
-    // Keep a count of the number of winners.
-    ++NumWinners;
   }
 
   // Print some statistics.
