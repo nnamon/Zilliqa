@@ -44,7 +44,8 @@ DSBlockHeader::DSBlockHeader(
     const uint8_t dsDifficulty, const uint8_t difficulty,
     const PubKey& leaderPubKey, const uint64_t& blockNum,
     const uint64_t& epochNum, const uint128_t& gasPrice, const SWInfo& swInfo,
-    const map<PubKey, Peer>& powDSWinners, const std::vector<PubKey>& removeDSNodePubkeys,
+    const map<PubKey, Peer>& powDSWinners,
+    const std::vector<PubKey>& removeDSNodePubkeys,
     const DSBlockHashSet& hashset, const uint32_t version,
     const CommitteeHash& committeeHash, const BlockHash& prevHash)
     : BlockHeaderBase(version, committeeHash, prevHash),
@@ -127,10 +128,12 @@ DSBlockHeader::GetHashSetReservedField() const {
 bool DSBlockHeader::operator==(const DSBlockHeader& header) const {
   return BlockHeaderBase::operator==(header) &&
          (std::tie(m_dsDifficulty, m_difficulty, m_leaderPubKey, m_blockNum,
-                   m_gasPrice, m_swInfo, m_PoWDSWinners, m_removeDSNodePubkeys) ==
+                   m_gasPrice, m_swInfo, m_PoWDSWinners,
+                   m_removeDSNodePubkeys) ==
           std::tie(header.m_dsDifficulty, header.m_difficulty,
                    header.m_leaderPubKey, header.m_blockNum, header.m_gasPrice,
-                   header.m_swInfo, header.m_PoWDSWinners, header.m_removeDSNodePubkeys));
+                   header.m_swInfo, header.m_PoWDSWinners,
+                   header.m_removeDSNodePubkeys));
 }
 
 bool DSBlockHeader::operator<(const DSBlockHeader& header) const {
