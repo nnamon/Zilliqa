@@ -1307,7 +1307,7 @@ bool ProtobufToDSBlockHeader(
   // Deserialize removeDSNodePubkeys
   std::vector<PubKey> removeDSNodePubKeys;
   PubKey tempRemovePubKey;
-  for (const auto& removenode : protoDSBlockHeader) {
+  for (const auto& removenode : protoDSBlockHeader.dsremoved()) {
     PROTOBUFBYTEARRAYTOSERIALIZABLE(removenode, tempRemovePubKey);
     removeDSNodePubKeys.emplace_back(tempRemovePubKey);
   }
