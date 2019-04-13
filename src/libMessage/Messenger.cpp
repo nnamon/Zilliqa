@@ -1240,6 +1240,12 @@ void DSBlockHeaderToProtobuf(const DSBlockHeader& dsBlockHeader,
       SerializableToProtobufByteArray(winner.second,
                                       *powdswinner->mutable_val());
     }
+
+    ZilliqaMessage::ByteArray* dsremoved;
+    for (const auto& removedPubKey : dsBlockHeader.GetDSRemovePubKeys()) {
+      dsremoved = protoDSBlockHeader.add_dsremoved();
+      SerializableToProtobufByteArray(removedPubKey);
+    }
   }
 
   SerializableToProtobufByteArray(dsBlockHeader.GetLeaderPubKey(),
