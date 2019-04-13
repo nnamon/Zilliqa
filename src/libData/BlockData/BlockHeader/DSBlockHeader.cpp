@@ -127,10 +127,10 @@ DSBlockHeader::GetHashSetReservedField() const {
 bool DSBlockHeader::operator==(const DSBlockHeader& header) const {
   return BlockHeaderBase::operator==(header) &&
          (std::tie(m_dsDifficulty, m_difficulty, m_leaderPubKey, m_blockNum,
-                   m_gasPrice, m_swInfo, m_PoWDSWinners, m_DSRemoved) ==
+                   m_gasPrice, m_swInfo, m_PoWDSWinners, m_removeDSNodePubkeys) ==
           std::tie(header.m_dsDifficulty, header.m_difficulty,
                    header.m_leaderPubKey, header.m_blockNum, header.m_gasPrice,
-                   header.m_swInfo, header.m_PoWDSWinners, header.m_DSRemoved));
+                   header.m_swInfo, header.m_PoWDSWinners, header.m_removeDSNodePubkeys));
 }
 
 bool DSBlockHeader::operator<(const DSBlockHeader& header) const {
