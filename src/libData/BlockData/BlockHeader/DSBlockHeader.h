@@ -44,8 +44,8 @@ class DSBlockHeader : public BlockHeaderBase {
   boost::multiprecision::uint128_t m_gasPrice;
   SWInfo m_swInfo;
   std::map<PubKey, Peer> m_PoWDSWinners;
-  DSBlockHashSet m_hashset;
   std::vector<PubKey> m_DSRemoved;
+  DSBlockHashSet m_hashset;
 
  public:
   /// Default constructor.
