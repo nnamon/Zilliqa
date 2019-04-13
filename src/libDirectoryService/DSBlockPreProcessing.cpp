@@ -512,7 +512,7 @@ bool DirectoryService::VerifyPoWOrdering(
       m_pendingDSBlock->GetHeader().GetDSPoWWinners();
 
   // Get the list of removed nodes.
-  std::vector<PubKey> dsRemovedNode =
+  std::vector<PubKey> removeDSNodePubkeys =
       m_pendingDSBlock->GetHeader().GetDSRemovePubKeys();
 
   // Inject expired DS members into the shard POW.
