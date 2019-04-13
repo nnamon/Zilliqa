@@ -53,11 +53,9 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
         "Shuffling non-performant node to the back of the DS Composition: "
             << RemovedNode);
 
-    // Only reorders the Committee. The size is not changed.
-    dsComm.emplace_back(*it);
-
     // Move the candidate to the back of the committee and continue processing
-    // other candidates.
+    // other candidates. Only reorders the Committee. The size is not changed.
+    dsComm.emplace_back(*it);
     dsComm.erase(it);
 
     continue;
