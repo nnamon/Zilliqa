@@ -45,6 +45,7 @@ class DSBlockHeader : public BlockHeaderBase {
   SWInfo m_swInfo;
   std::map<PubKey, Peer> m_PoWDSWinners;
   DSBlockHashSet m_hashset;
+  std::vector<PubKey> m_DSRemoved;
 
  public:
   /// Default constructor.
@@ -62,7 +63,8 @@ class DSBlockHeader : public BlockHeaderBase {
                 const std::map<PubKey, Peer>& powDSWinners,
                 const DSBlockHashSet& hashset, const uint32_t version = 0,
                 const CommitteeHash& committeeHash = CommitteeHash(),
-                const BlockHash& prevHash = BlockHash());
+                const BlockHash& prevHash = BlockHash(),
+                const std::vector<PubKey>& dsRemoved);
 
   /// Implements the Serialize function inherited from Serializable.
   bool Serialize(bytes& dst, unsigned int offset) const override;
@@ -98,7 +100,11 @@ class DSBlockHeader : public BlockHeaderBase {
   /// block.
   const SWInfo& GetSWInfo() const;
 
+  // Returns the DS PoW Winners.
   const std::map<PubKey, Peer>& GetDSPoWWinners() const;
+
+  // Returns the DS members to remove for non-performance.
+  const std::vector<PubKey>& GetDSRemoved() const;
 
   /// Returns the digest that represents the hash of the sharding structure
   const ShardingHash& GetShardingHash() const;

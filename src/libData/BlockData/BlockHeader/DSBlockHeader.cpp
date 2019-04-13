@@ -31,9 +31,10 @@ DSBlockHeader::DSBlockHeader()
       m_gasPrice(0),
       m_swInfo(),
       m_PoWDSWinners(),
-      m_hashset() {}
+      m_hashset(){},
+      m_DSRemoved()
 
-DSBlockHeader::DSBlockHeader(const bytes& src, unsigned int offset) {
+          DSBlockHeader::DSBlockHeader(const bytes& src, unsigned int offset) {
   if (!Deserialize(src, offset)) {
     LOG_GENERAL(WARNING, "We failed to init DSBlockHeader.");
   }
@@ -45,7 +46,7 @@ DSBlockHeader::DSBlockHeader(
     const uint64_t& epochNum, const uint128_t& gasPrice, const SWInfo& swInfo,
     const map<PubKey, Peer>& powDSWinners, const DSBlockHashSet& hashset,
     const uint32_t version, const CommitteeHash& committeeHash,
-    const BlockHash& prevHash)
+    const BlockHash& prevHash, const std::vector<PubKey> dsRemoved)
     : BlockHeaderBase(version, committeeHash, prevHash),
       m_dsDifficulty(dsDifficulty),
       m_difficulty(difficulty),
@@ -55,9 +56,11 @@ DSBlockHeader::DSBlockHeader(
       m_gasPrice(gasPrice),
       m_swInfo(swInfo),
       m_PoWDSWinners(powDSWinners),
-      m_hashset(hashset) {}
+      m_hashset(hashset){},
+      m_DSRemoved(dsRemoved)
 
-bool DSBlockHeader::Serialize(bytes& dst, unsigned int offset) const {
+          bool DSBlockHeader::Serialize(bytes & dst,
+                                        unsigned int offset) const {
   if (!Messenger::SetDSBlockHeader(dst, offset, *this)) {
     LOG_GENERAL(WARNING, "Messenger::SetDSBlockHeader failed.");
     return false;
@@ -108,6 +111,8 @@ const SWInfo& DSBlockHeader::GetSWInfo() const { return m_swInfo; }
 const map<PubKey, Peer>& DSBlockHeader::GetDSPoWWinners() const {
   return m_PoWDSWinners;
 }
+
+const map<PubKey>& DSBlockHeader::GetDSRemoved() const { return m_DSRemoved; }
 
 const ShardingHash& DSBlockHeader::GetShardingHash() const {
   return m_hashset.m_shardingHash;
