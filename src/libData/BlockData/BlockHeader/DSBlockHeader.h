@@ -64,7 +64,7 @@ class DSBlockHeader : public BlockHeaderBase {
                 const DSBlockHashSet& hashset, const uint32_t version = 0,
                 const CommitteeHash& committeeHash = CommitteeHash(),
                 const BlockHash& prevHash = BlockHash(),
-                const std::vector<PubKey>& dsRemoved);
+                const std::vector<PubKey>& dsRemoved = std::vector());
 
   /// Implements the Serialize function inherited from Serializable.
   bool Serialize(bytes& dst, unsigned int offset) const override;
