@@ -141,6 +141,9 @@ inline std::ostream& operator<<(std::ostream& os, const DSBlockHeader& t) {
   for (const auto& node : t.m_PoWDSWinners) {
     os << " PoWDSWinner    = " << node.first << " " << node.second << std::endl;
   }
+  for (const auto& node : t.m_dsRemoved) {
+    os << " DSRemoved      = " << node.first << std::endl;
+  }
 
   return os;
 }

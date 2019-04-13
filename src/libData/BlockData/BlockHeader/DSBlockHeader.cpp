@@ -111,7 +111,7 @@ const map<PubKey, Peer>& DSBlockHeader::GetDSPoWWinners() const {
   return m_PoWDSWinners;
 }
 
-const map<PubKey>& DSBlockHeader::GetDSRemoved() const { return m_DSRemoved; }
+const std::vector<PubKey>& DSBlockHeader::GetDSRemoved() const { return m_DSRemoved; }
 
 const ShardingHash& DSBlockHeader::GetShardingHash() const {
   return m_hashset.m_shardingHash;
