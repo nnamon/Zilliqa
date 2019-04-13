@@ -101,6 +101,7 @@ DSBlockHeader GenerateRandomDSBlockHeader() {
   uint128_t gasPrice = PRECISION_MIN_VALUE;
   SWInfo swInfo;
   map<PubKey, Peer> powDSWinners;
+  std::vector<PubKey> removeDSNodePubkeys;
   DSBlockHashSet hash;
   CommitteeHash committeeHash;
 
@@ -109,8 +110,9 @@ DSBlockHeader GenerateRandomDSBlockHeader() {
   }
 
   return DSBlockHeader(dsDifficulty, difficulty, leaderPubKey, blockNum,
-                       epochNum, gasPrice, swInfo, powDSWinners, hash, version,
-                       committeeHash, prevHash);
+                       epochNum, gasPrice, swInfo, powDSWinners,
+                       removeDSNodePubkeys, hash, version, committeeHash,
+                       prevHash);
 }
 
 MicroBlockHeader GenerateRandomMicroBlockHeader() {
