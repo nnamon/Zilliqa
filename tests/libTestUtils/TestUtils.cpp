@@ -195,10 +195,10 @@ FallbackBlockHeader GenerateRandomFallbackBlockHeader() {
 }
 
 DSBlockHeader createDSBlockHeader(const uint64_t& blockNum) {
-  return DSBlockHeader(DistUint8(), DistUint8(), GenerateRandomPubKey(),
-                       blockNum, DistUint64(), DistUint128(), SWInfo(),
-                       map<PubKey, Peer>(), DSBlockHashSet(), DistUint32(),
-                       CommitteeHash(), BlockHash());
+  return DSBlockHeader(
+      DistUint8(), DistUint8(), GenerateRandomPubKey(), blockNum, DistUint64(),
+      DistUint128(), SWInfo(), map<PubKey, Peer>(), std::vector<PubKey>(),
+      DSBlockHashSet(), DistUint32(), CommitteeHash(), BlockHash());
 }
 
 TxBlockHeader createTxBlockHeader(const uint64_t& blockNum) {
