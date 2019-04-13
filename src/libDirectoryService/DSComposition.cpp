@@ -34,9 +34,12 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
   // Shuffle the non-performant nodes to the back.
   DequeOfNode::iterator it;
   for (const auto& RemovedNode : removeDSNodePubkeys) {
-
     // Find the pubkey in our view of the DS Committee.
-    it = dsComm.find(RemovedNode);
+    for (it = dsComm.begin(); it != dsComm.end(); ++it) {
+      if (RemovedNode == it->first) {
+        break;
+      }
+    }
     if (it == dsComm.end()) {
       LOG_GENERAL(WARNING,
                   "[FATAL] The DS member "
