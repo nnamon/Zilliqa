@@ -44,7 +44,7 @@ DSBlockHeader::DSBlockHeader(
     const uint8_t dsDifficulty, const uint8_t difficulty,
     const PubKey& leaderPubKey, const uint64_t& blockNum,
     const uint64_t& epochNum, const uint128_t& gasPrice, const SWInfo& swInfo,
-    const map<PubKey, Peer>& powDSWinners, const std::vector<PubKey>& m_removeDSNodePubkeys,
+    const map<PubKey, Peer>& powDSWinners, const std::vector<PubKey>& removeDSNodePubkeys,
     const DSBlockHashSet& hashset, const uint32_t version,
     const CommitteeHash& committeeHash, const BlockHash& prevHash)
     : BlockHeaderBase(version, committeeHash, prevHash),
