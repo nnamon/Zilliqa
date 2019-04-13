@@ -1304,6 +1304,14 @@ bool ProtobufToDSBlockHeader(
     powDSWinners[tempPubKey] = tempWinnerNetworkInfo;
   }
 
+  // Deserialize removeDSNodePubkeys
+  std::vector<PubKey> removeDSNodePubKeys;
+  PubKey tempRemovePubKey;
+  for (const auto& removenode : protoDSBlockHeader) {
+    PROTOBUFBYTEARRAYTOSERIALIZABLE(removenode, tempRemovePubKey);
+    removeDSNodePubKeys.emplace_back(tempRemovePubKey);
+  }
+
   // Deserialize DSBlockHashSet
   DSBlockHashSet hash;
   const ZilliqaMessage::ProtoDSBlock::DSBlockHashSet& protoDSBlockHeaderHash =
@@ -1334,9 +1342,10 @@ bool ProtobufToDSBlockHeader(
         protoDSBlockHeader.gasprice(), gasprice);
   }
 
-  dsBlockHeader = DSBlockHeader(
-      dsdifficulty, difficulty, leaderPubKey, protoDSBlockHeader.blocknum(),
-      protoDSBlockHeader.epochnum(), gasprice, swInfo, powDSWinners, hash);
+  dsBlockHeader = DSBlockHeader(dsdifficulty, difficulty, leaderPubKey,
+                                protoDSBlockHeader.blocknum(),
+                                protoDSBlockHeader.epochnum(), gasprice, swInfo,
+                                powDSWinners, removeDSNodePubKeys, hash);
 
   const ZilliqaMessage::ProtoBlockHeaderBase& protoBlockHeaderBase =
       protoDSBlockHeader.blockheaderbase();
