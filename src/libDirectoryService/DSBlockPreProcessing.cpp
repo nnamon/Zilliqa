@@ -439,24 +439,16 @@ bool DirectoryService::VerifyDifficulty() {
 
 bool DirectoryService::VerifyRemovedByzantineNodes() {
   LOG_MARKER();
-  // Get the list of proposed DS candidates.
-  const auto& dsPoWWinners = m_pendingDSBlock->GetHeader().GetDSPoWWinners();
+  // Get the list of DS members to remove
+  const auto& removeDSNodePubkeys =
+      m_pendingDSBlock->GetHeader().GetDSRemovePubKeys();
+  unsigned int numOfRemovedMembers = removeDSNodePubkeys.size();
 
-  // The PoW winners were validated before in DirectoryService::VerifyPoWWinner,
-  // hence it is safe to assume that the numOfProposedMembers is authoritative.
-  unsigned int numOfProposedMembers = 0;
-  for (const auto& candidate : dsPoWWinners) {
-    if (!CheckIfDSNode(candidate.first)) {
-      ++numOfProposedMembers;
-    }
-  }
-  unsigned int numOfRemovedMembers = dsPoWWinners.size() - numOfProposedMembers;
-
-  // Create an empty map to populate with our view of the DS member
-  // performances.
-  std::map<PubKey, Peer> comparedToBeRemoved;
+  // Create an empty vector to populate with our view of the DS members to
+  // remove.
+  std::vector<PubKey> comparedToBeRemoved;
   unsigned int comparedNumOfRemoved =
-      InjectByzantineNodes(numOfProposedMembers, comparedToBeRemoved);
+      DetermineByzantineNodes(numOfProposedMembers, comparedToBeRemoved);
 
   // Check that the number of nodes to remove matches the proposed
   // DS block.
@@ -472,7 +464,8 @@ bool DirectoryService::VerifyRemovedByzantineNodes() {
   // Check that all of the nodes we computed to remove are present in the
   // proposed DS block.
   for (const auto& member : comparedToBeRemoved) {
-    if (dsPoWWinners.find(member.first) == dsPoWWinners.end()) {
+    if (std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
+                  member.first) == removeDSNodePubkeys.end()) {
       LOG_GENERAL(WARNING, "Expected "
                                << member.first
                                << " to be proposed for removal but could not "
