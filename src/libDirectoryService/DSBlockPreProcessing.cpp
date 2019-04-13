@@ -253,7 +253,8 @@ void DirectoryService::InjectPoWForDSNode(
     }
 
     // Check if the current member is a node to be removed.
-    if (std::find(removeDSNodePubkeys, *rit->first) != removeDSNodePubkeys.end()) {
+    if (std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
+                  rit->first) != removeDSNodePubkeys.end()) {
       // If it is, continue onto the next member.
       continue;
     }
@@ -513,7 +514,8 @@ bool DirectoryService::VerifyPoWOrdering(
       m_pendingDSBlock->GetHeader().GetDSPoWWinners();
 
   // Get the list of removed nodes.
-  std::vector<PubKey> dsRemovedNode = m_pendingDSBlock->GetHeader().GetDSRemovePubKeys();
+  std::vector<PubKey> dsRemovedNode =
+      m_pendingDSBlock->GetHeader().GetDSRemovePubKeys();
 
   // Inject expired DS members into the shard POW.
   InjectPoWForDSNode(sortedPoWSolns, dsPoWWinners.size(), removeDSNodePubkeys);
@@ -927,7 +929,8 @@ bool DirectoryService::RunConsensusOnDSBlockWhenDSPrimary() {
   DetermineByzantineNodes(numOfProposedDSMembers, removeDSNodePubkeys);
 
   // Inject expired DS members into the shard POW.
-  InjectPoWForDSNode(sortedPoWSolns, numOfProposedDSMembers, removeDSNodePubkeys);
+  InjectPoWForDSNode(sortedPoWSolns, numOfProposedDSMembers,
+                     removeDSNodePubkeys);
 
   if (DEBUG_LEVEL >= 5) {
     for (const auto& pairPoWKey : sortedPoWSolns) {
