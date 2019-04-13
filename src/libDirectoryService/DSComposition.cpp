@@ -93,7 +93,7 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
   }
 
   // Print some statistics.
-  unsigned int NumLosers = NewDSMembers.size() - NumWinners;
+  unsigned int NumLosers = removeDSNodePubkeys.size();
   unsigned int NumExpiring = NumWinners - NumLosers;
   LOG_GENERAL(INFO, "Total winners inserted: " << NumWinners);
   LOG_GENERAL(INFO, "Total non-performant nodes re-shuffled: " << NumLosers);
