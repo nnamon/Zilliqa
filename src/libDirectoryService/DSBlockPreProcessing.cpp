@@ -1338,7 +1338,7 @@ bool DirectoryService::ProcessShardingStructure(
   return true;
 }
 
-static void DirectoryService::InternalSaveDSPerformance(
+void DirectoryService::InternalSaveDSPerformance(
     std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
         coinbaseRewardees,
     std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
@@ -1400,7 +1400,7 @@ void DirectoryService::SaveDSPerformance() {
       CoinbaseReward::FINALBLOCK_REWARD);
 }
 
-static unsigned int InternalDetermineByzantineNodes(
+unsigned int InternalDetermineByzantineNodes(
     unsigned int numOfProposedDSMembers,
     std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
     unsigned int numOfFinalBlock, double performanceThreshold,
