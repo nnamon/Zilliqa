@@ -33,7 +33,7 @@
 
 #define COMMITTEE_SIZE 20
 #define NUM_OF_ELECTED 5
-#define NUM_OF_REMOVED 2
+#define NUM_OF_REMOVED 3
 #define LOCALHOST 0x7F000001
 #define BASE_PORT 2600
 #define BLOCK_NUM 1
@@ -136,6 +136,56 @@ BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
 }
 
 // Test the case when the number of Byzantine nodes is < maxByzantineRemoved.
+BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
+  INIT_STDOUT_LOGGER();
+
+  // Create the expected removed node list.
+  std::vector<PubKey> expectedRemoveDSNodePubkeys;
+
+  // Create the member performance.
+  std::map<PubKey, uint32_t> dsMemberPerformance;
+  unsigned int count = 0;
+  unsigned int target = NUM_OF_REMOVED - 1;
+  for (const auto& member : dsComm) {
+    if (count < target) {
+      dsMemberPerformance[member.first] = 0;
+      expectedRemoveDSNodePubkeys.emplace_back(member.first);
+    } else {
+      dsMemberPerformance[member.first] = threshold + 1;
+    }
+    ++count;
+  }
+
+  // Check the expected list.
+  BOOST_CHECK_MESSAGE(expectedRemoveDSNodePubkeys.size() == target,
+                      "expectedRemoveDSNodePubkeys size wrong. Actual: "
+                          << expectedRemoveDSNodePubkeys.size()
+                          << ". Expected: " << target);
+
+  // Initialise the removal list.
+  std::vector<PubKey> removeDSNodePubkeys;
+
+  unsigned int removeResult = InternalDetermineByzantineNodes(
+      NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
+      PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
+
+  // Check the size.
+  BOOST_CHECK_MESSAGE(removeResult == target,
+                      "removeResult value wrong. Actual: "
+                          << removeResult << ". Expected: " << target);
+  BOOST_CHECK_MESSAGE(
+      removeDSNodePubkeys.size() == target,
+      "removeDSNodePubkeys size wrong. Actual: " << removeDSNodePubkeys.size()
+                                                 << ". Expected: " << target);
+
+  // Check the keys.
+  for (const auto& pubkey : expectedRemovedDSNodePubkeys) {
+    BOOST_CHECK_MESSAGE(
+        std::find(removedDSNodePubkeys.begin(), removedDSNodePubkeys.end(),
+                  pubkey == removedDSNodePubkeys.end(),
+        "Expected pub key " << pubkey << " was not found in the result.")
+  }
+}
 
 // Test the case when the number of Byzantine nodes is > maxByzantineRemoved.
 
