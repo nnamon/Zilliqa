@@ -1402,7 +1402,9 @@ unsigned int DirectoryService::DetermineByzantineNodes(
     unsigned int numOfProposedDSMembers,
     std::vector<PubKey>& removeDSNodePubkeys) {
   LOG_MARKER();
-  std::lock_guard<mutex> g(m_mutexDsMemberPerformance);
+  std::lock(m_mutexDsMemberPerformance, m_mediator.m_mutexDSCommittee);
+  std::lock_guard<mutex> g(m_mutexDsMemberPerformance, std::adopt_lock);
+  std::lock_guard<mutex> g(m_mediator.m_mutexDSCommittee, std::adopt_lock);
 
   return InternalDetermineByzantineNodes(
       numOfProposedDSMembers, removeDSNodePubkeys, m_mediator.m_currentEpochNum,
