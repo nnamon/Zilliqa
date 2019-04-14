@@ -188,5 +188,57 @@ BOOST_FIXTURE_TEST_CASE(test_LessThanByzantineNodes, F) {
 }
 
 // Test the case when the number of Byzantine nodes is > maxByzantineRemoved.
+BOOST_FIXTURE_TEST_CASE(test_MoreThanByzantineNodes, F) {
+  INIT_STDOUT_LOGGER();
+
+  // Create the expected removed node list.
+  std::vector<PubKey> expectedRemoveDSNodePubkeys;
+
+  // Create the member performance.
+  std::map<PubKey, uint32_t> dsMemberPerformance;
+  unsigned int count = 0;
+  unsigned int target = NUM_OF_REMOVED + 5;
+  for (const auto& member : dsComm) {
+    if (count < target) {
+      dsMemberPerformance[member.first] = 0;
+      if (count < NUM_OF_REMOVED) {
+        expectedRemoveDSNodePubkeys.emplace_back(member.first);
+      }
+    } else {
+      dsMemberPerformance[member.first] = threshold + 1;
+    }
+    ++count;
+  }
+
+  // Check the expected list.
+  BOOST_CHECK_MESSAGE(expectedRemoveDSNodePubkeys.size() == NUM_OF_REMOVED,
+                      "expectedRemoveDSNodePubkeys size wrong. Actual: "
+                          << expectedRemoveDSNodePubkeys.size()
+                          << ". Expected: " << NUM_OF_REMOVED);
+
+  // Initialise the removal list.
+  std::vector<PubKey> removeDSNodePubkeys;
+
+  unsigned int removeResult = InternalDetermineByzantineNodes(
+      NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
+      PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
+
+  // Check the size.
+  BOOST_CHECK_MESSAGE(removeResult == NUM_OF_REMOVED,
+                      "removeResult value wrong. Actual: "
+                          << removeResult << ". Expected: " << NUM_OF_REMOVED);
+  BOOST_CHECK_MESSAGE(
+      removeDSNodePubkeys.size() == NUM_OF_REMOVED,
+      "removeDSNodePubkeys size wrong. Actual: " << removeDSNodePubkeys.size()
+                                                 << ". Expected: " << NUM_OF_REMOVED);
+
+  // Check the keys.
+  for (const auto& pubkey : expectedRemoveDSNodePubkeys) {
+    BOOST_CHECK_MESSAGE(
+        std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
+                  pubkey) != removeDSNodePubkeys.end(),
+        "Expected pub key " << pubkey << " was not found in the result.");
+  }
+}
 
 BOOST_AUTO_TEST_SUITE_END()
