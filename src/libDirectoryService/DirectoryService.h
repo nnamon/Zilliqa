@@ -307,22 +307,9 @@ class DirectoryService : public Executable {
 
   // DS Reputation
   void SaveDSPerformance();
-  static void InternalSaveDSPerformance(
-      std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
-          coinbaseRewardees,
-      std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
-      uint64_t currentEpochNum, unsigned int numOfFinalBlock,
-      int finalblockRewardID);
-
   unsigned int DetermineByzantineNodes(
       unsigned int numOfProposedDSMembers,
       std::vector<PubKey>& removeDSNodePubkeys);
-  static unsigned int InternalDetermineByzantineNodes(
-      unsigned int numOfProposedDSMembers,
-      std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
-      unsigned int numOfFinalBlock, double performanceThreshold,
-      unsigned int maxByzantineRemoved, DequeOfNode& dsComm,
-      std::map<PubKey, uint32_t>& dsMemberPerformance);
 
   // internal calls from RunConsensusOnDSBlock
   bool RunConsensusOnDSBlockWhenDSPrimary();
@@ -657,6 +644,20 @@ class DirectoryService : public Executable {
                                 std::vector<PubKey>& pubKeys);
 
   std::string GetStateString() const;
+
+  // DS Reputation functions with no state access.
+  static void InternalSaveDSPerformance(
+      std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
+          coinbaseRewardees,
+      std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
+      uint64_t currentEpochNum, unsigned int numOfFinalBlock,
+      int finalblockRewardID);
+  static unsigned int InternalDetermineByzantineNodes(
+      unsigned int numOfProposedDSMembers,
+      std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
+      unsigned int numOfFinalBlock, double performanceThreshold,
+      unsigned int maxByzantineRemoved, DequeOfNode& dsComm,
+      std::map<PubKey, uint32_t>& dsMemberPerformance);
 
  private:
   static std::map<DirState, std::string> DirStateStrings;
