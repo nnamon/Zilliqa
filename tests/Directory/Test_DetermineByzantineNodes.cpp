@@ -68,8 +68,8 @@ struct F {
     }
 
     // Compute some default parameters
-    maxCoSigs = (numOfFinalBlock - 1) * 2;
-    threshold = std::ceil(performanceThreshold * maxCoSigs);
+    maxCoSigs = (NUM_OF_FINAL_BLOCK - 1) * 2;
+    threshold = std::ceil(PERFORMANCE_THRESHOLD * maxCoSigs);
   }
 
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
