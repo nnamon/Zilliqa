@@ -109,7 +109,7 @@ BOOST_FIXTURE_TEST_CASE(test_CleanSave, F) {
 
   // Check the result.
   for (const auto& member : dsComm) {
-    BOOST_CHECK_MESSAGE(dsMemberPerformance.at(member.first) != 0,
+    BOOST_CHECK_MESSAGE(dsMemberPerformance.at(member.first) == 0,
                         "Pub Key " << member.first
                                    << " is not cleared. Expected: 0. Actual: "
                                    << dsMemberPerformance.at(member.first));
