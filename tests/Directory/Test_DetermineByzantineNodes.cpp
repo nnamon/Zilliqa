@@ -181,8 +181,8 @@ BOOST_FIXTURE_TEST_CASE(test_LessThanByzantineNodes, F) {
   // Check the keys.
   for (const auto& pubkey : expectedRemoveDSNodePubkeys) {
     BOOST_CHECK_MESSAGE(
-        std::find(removedDSNodePubkeys.begin(), removedDSNodePubkeys.end(),
-                  pubkey) == removedDSNodePubkeys.end(),
+        std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
+                  pubkey) == removeDSNodePubkeys.end(),
         "Expected pub key " << pubkey << " was not found in the result.")
   }
 }
