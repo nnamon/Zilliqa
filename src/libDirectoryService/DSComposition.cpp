@@ -171,3 +171,53 @@ unsigned int InternalDetermineByzantineNodes(
 
   return numRemoved;
 }
+
+void InternalSaveDSPerformance(
+    std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
+        coinbaseRewardees,
+    std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
+    uint64_t currentEpochNum, unsigned int numOfFinalBlock,
+    int finalblockRewardID) {
+  LOG_MARKER();
+
+  // Clear the previous performances.
+  dsMemberPerformance.clear();
+
+  // Initialise the map with the DS Committee public keys mapped to 0.
+  for (const auto& member : dsComm) {
+    m_dsMemberPerformance[member.first] = 0;
+  }
+
+  // Go through the coinbase rewardees and tally the number of co-sigs.
+  // For each TX epoch,
+  for (auto const& epochNum : coinbaseRewardees) {
+    // Find the DS Shard.
+    for (auto const& shard : epochNum.second) {
+      if (shard.first == finalblockRewardID) {
+        // Find the rewards that belong to the DS Shard.
+        for (auto const& pubkey : shard.second) {
+          // Check if the public key exists in the initialized map.
+          if (dsMemberPerformance.find(pubkey) == dsMemberPerformance.end()) {
+            LOG_GENERAL(WARNING,
+                        "Unknown (Not in DS Committee) public key "
+                            << pubkey
+                            << " found to have "
+                               "contributed co-sigs as a DS Committee member.");
+          } else {
+            // Increment the performance score if the public key exists.
+            ++dsMemberPerformance[pubkey];
+          }
+        }
+      }
+    }
+  }
+
+  // Display the performance scores of all the DS Committee members.
+  LOG_EPOCH(INFO, currentEpochNum, "DS Committee Co-Signature Performance");
+  unsigned int index = 0;
+  uint32_t maxCoSigs = (numOfFinalBlock - 1) * 2;
+  for (const auto& member : dsMemberPerformance) {
+    LOG_GENERAL(INFO, "[" << PAD(index++, 3, ' ') << "] " << member.first << " "
+                          << PAD(member.second, 4, ' ') << "/" << maxCoSigs);
+  }
+}

@@ -1354,48 +1354,10 @@ void DirectoryService::SaveDSPerformance() {
   std::lock_guard<mutex> h(m_mutexCoinbaseRewardees, std::adopt_lock);
   std::lock_guard<mutex> g(m_mutexDsMemberPerformance, std::adopt_lock);
 
-  // Clear the previous performances.
-  m_dsMemberPerformance.clear();
-
-  // Initialise the map with the DS Committee public keys mapped to 0.
-  for (const auto& member : *m_mediator.m_DSCommittee) {
-    m_dsMemberPerformance[member.first] = 0;
-  }
-
-  // Go through the coinbase rewardees and tally the number of co-sigs.
-  // For each TX epoch,
-  for (auto const& epochNum : m_coinbaseRewardees) {
-    // Find the DS Shard.
-    for (auto const& shard : epochNum.second) {
-      if (shard.first == CoinbaseReward::FINALBLOCK_REWARD) {
-        // Find the rewards that belong to the DS Shard.
-        for (auto const& pubkey : shard.second) {
-          // Check if the public key exists in the initialized map.
-          if (m_dsMemberPerformance.find(pubkey) ==
-              m_dsMemberPerformance.end()) {
-            LOG_GENERAL(WARNING,
-                        "Unknown (Not in DS Committee) public key "
-                            << pubkey
-                            << " found to have "
-                               "contributed co-sigs as a DS Committee member.");
-          } else {
-            // Increment the performance score if the public key exists.
-            ++m_dsMemberPerformance[pubkey];
-          }
-        }
-      }
-    }
-  }
-
-  // Display the performance scores of all the DS Committee members.
-  LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
-            "DS Committee Co-Signature Performance");
-  unsigned int index = 0;
-  uint32_t maxCoSigs = (NUM_FINAL_BLOCK_PER_POW - 1) * 2;
-  for (const auto& member : m_dsMemberPerformance) {
-    LOG_GENERAL(INFO, "[" << PAD(index++, 3, ' ') << "] " << member.first << " "
-                          << PAD(member.second, 4, ' ') << "/" << maxCoSigs);
-  }
+  InternalSaveDSPerformance(
+      m_coinbaseRewardees, m_dsMemberPerformance, *m_mediator.m_DSCommittee,
+      m_mediator.m_currentEpochNum, NUM_FINAL_BLOCK_PER_POW,
+      CoinbaseReward::FINALBLOCK_REWARD);
 }
 
 unsigned int DirectoryService::DetermineByzantineNodes(
