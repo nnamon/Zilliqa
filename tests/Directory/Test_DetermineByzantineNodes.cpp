@@ -93,7 +93,7 @@ BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
   }
 
   // Initialise the removal list.
-  std::vector<PubKey>& removeDSNodePubkeys;
+  std::vector<PubKey> removeDSNodePubkeys;
 
   unsigned int removeResult = InternalDetermineByzantineNodes(
       NUM_OF_ELECTED, removeDSNodePubkeys, 1, NUM_OF_FINAL_BLOCK,
