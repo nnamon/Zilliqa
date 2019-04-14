@@ -1400,7 +1400,7 @@ void DirectoryService::SaveDSPerformance() {
       CoinbaseReward::FINALBLOCK_REWARD);
 }
 
-unsigned int InternalDetermineByzantineNodes(
+unsigned int DirectoryService::InternalDetermineByzantineNodes(
     unsigned int numOfProposedDSMembers,
     std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
     unsigned int numOfFinalBlock, double performanceThreshold,
