@@ -82,14 +82,14 @@ struct F {
 };
 
 // Test that performance is not taken into account on epoch 1.
-//
 BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
   INIT_STDOUT_LOGGER();
 
   // Create the member performance.
   std::map<PubKey, uint32_t> dsMemberPerformance;
   for (const auto& member : dsComm) {
-    dsMemberPerformance[member.first] = std::rand() % maxCoSigs;
+    // Definite non-performance.
+    dsMemberPerformance[member.first] = 0;
   }
 
   // Initialise the removal list.
@@ -109,7 +109,34 @@ BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
 }
 
 // Test the case when there are no Byzantine nodes.
+BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
+  INIT_STDOUT_LOGGER();
+
+  // Create the member performance.
+  std::map<PubKey, uint32_t> dsMemberPerformance;
+  for (const auto& member : dsComm) {
+    // Definite performance.
+    dsMemberPerformance[member.first] = threshold + 1;
+  }
+
+  // Initialise the removal list.
+  std::vector<PubKey> removeDSNodePubkeys;
+
+  unsigned int removeResult = InternalDetermineByzantineNodes(
+      NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
+      PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
+
+  // Check the size.
+  BOOST_CHECK_MESSAGE(
+      removeResult == 0,
+      "removeResult value wrong. Actual: " << removeResult << ". Expected: 0.");
+  BOOST_CHECK_MESSAGE(removeDSNodePubkeys.size() == 0,
+                      "removeDSNodePubkeys size wrong. Actual: "
+                          << removeDSNodePubkeys.size() << ". Expected: 0.");
+}
+
 // Test the case when the number of Byzantine nodes is < maxByzantineRemoved.
+
 // Test the case when the number of Byzantine nodes is > maxByzantineRemoved.
 
 BOOST_AUTO_TEST_SUITE_END()
