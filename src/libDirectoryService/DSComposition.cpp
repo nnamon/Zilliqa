@@ -185,7 +185,7 @@ void InternalSaveDSPerformance(
 
   // Initialise the map with the DS Committee public keys mapped to 0.
   for (const auto& member : dsComm) {
-    m_dsMemberPerformance[member.first] = 0;
+    dsMemberPerformance[member.first] = 0;
   }
 
   // Go through the coinbase rewardees and tally the number of co-sigs.
