@@ -109,10 +109,10 @@ BOOST_FIXTURE_TEST_CASE(test_CleanSave, F) {
 
   // Check the result.
   for (const auto& member : dsComm) {
-    BOOST_CHECK_MESSAGE(dsMemberPerformance.at(member.first) == 0,
+    BOOST_CHECK_MESSAGE(dsMemberPerformance[member.first] == 0,
                         "Pub Key " << member.first
                                    << " is not cleared. Expected: 0. Actual: "
-                                   << dsMemberPerformance.at(member.first));
+                                   << dsMemberPerformance[member.first]);
   }
 }
 
@@ -192,11 +192,11 @@ BOOST_FIXTURE_TEST_CASE(test_LegitimateCase, F) {
   // Check the result.
   for (const auto& member : dsComm) {
     BOOST_CHECK_MESSAGE(
-        dsMemberPerformance.at(member.first) !=
-            expectedDSMemberPerformance.at(member.first),
+        dsMemberPerformance[member.first] !=
+            expectedDSMemberPerformance[member.first],
         "Pub Key " << member.first << " performance does not match. Actual: "
-                   << dsMemberPerformance.at(member.first) << ". Expected: "
-                   << expectedDSMemberPerformance.at(member.first));
+                   << dsMemberPerformance[member.first] << ". Expected: "
+                   << expectedDSMemberPerformance[member.first]);
   }
 }
 
