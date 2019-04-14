@@ -89,7 +89,7 @@ BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
   // Create the member performance.
   std::map<PubKey, uint32_t> dsMemberPerformance;
   for (const auto& member : dsComm) {
-    expectedDSMemberPerformance[member.first] = std::rand() % maxCoSigs;
+    dsMemberPerformance[member.first] = std::rand() % maxCoSigs;
   }
 
   // Initialise the removal list.
