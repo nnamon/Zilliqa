@@ -108,3 +108,66 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
     dsComm.pop_back();
   }
 }
+
+unsigned int InternalDetermineByzantineNodes(
+    unsigned int numOfProposedDSMembers,
+    const std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
+    unsigned int numOfFinalBlock, double performanceThreshold,
+    unsigned int maxByzantineRemoved, const DequeOfNode& dsComm,
+    std::map<PubKey, uint32_t>& dsMemberPerformance) {
+  LOG_MARKER();
+
+  // Do not determine Byzantine nodes on the first epoch when performance cannot
+  // be measured.
+  if (currentEpochNum <= 1) {
+    LOG_GENERAL(INFO,
+                "Skipping determining Byzantine nodes for removal since "
+                "performance cannot be measured on the first epoch.");
+    return 0;
+  }
+
+  // Parameters
+  uint32_t maxCoSigs = (numOfFinalBlock - 1) * 2;
+  uint32_t threshold = std::ceil(performanceThreshold * maxCoSigs);
+  unsigned int numToRemove =
+      std::min(maxByzantineRemoved, numOfProposedDSMembers);
+
+  // Build a list of Byzantine Nodes
+  LOG_EPOCH(INFO, currentEpochNum,
+            "Evaluating performance of the current DS Committee.");
+  LOG_GENERAL(INFO, "maxCoSigs = " << maxCoSigs);
+  LOG_GENERAL(
+      INFO, "threshold = " << threshold << " (" << performanceThreshold << ")");
+  unsigned int numByzantine = 0;
+  unsigned int index = 0;
+  for (auto it = dsComm.begin(); it != dsComm.end(); ++it) {
+    // Do not evaluate guard nodes.
+    if (GUARD_MODE && Guard::GetInstance().IsNodeInDSGuardList(it->first)) {
+      continue;
+    }
+
+    // Check if the score is below the calculated threshold.
+    uint32_t score = dsMemberPerformance.at(it->first);
+    if (score < threshold) {
+      // Only add the node to be removed if there is still capacity.
+      if (numByzantine < numToRemove) {
+        removeDSNodePubkeys.emplace_back(it->first);
+      }
+
+      // Log the index and public key of a found Byzantine node regardless of if
+      // they will be removed.
+      LOG_GENERAL(INFO, "[" << PAD(index++, 3, ' ') << "] " << it->first << " "
+                            << PAD(score, 4, ' ') << "/" << maxCoSigs);
+      ++numByzantine;
+    }
+  }
+
+  // Log the general statistics of the computation.
+  unsigned int numRemoved = std::min(numToRemove, numByzantine);
+  LOG_GENERAL(INFO, "Number of DS members not meeting the co-sig threshold: "
+                        << numByzantine);
+  LOG_GENERAL(INFO,
+              "Number of Byzantine DS members to be removed: " << numRemoved);
+
+  return numRemoved;
+}

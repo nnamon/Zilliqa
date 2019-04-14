@@ -28,4 +28,11 @@ void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
                                           DequeOfNode& dsComm,
                                           const DSBlock& dsblock);
 
+unsigned int InternalDetermineByzantineNodes(
+    unsigned int numOfProposedDSMembers,
+    const std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
+    unsigned int numOfFinalBlock, double performanceThreshold,
+    unsigned int maxByzantineRemoved, const DequeOfNode& dsComm,
+    std::map<PubKey, uint32_t>& dsMemberPerformance);
+
 #endif  // __DSCOMPOSITION_H__

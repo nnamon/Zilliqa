@@ -1403,61 +1403,11 @@ unsigned int DirectoryService::DetermineByzantineNodes(
   LOG_MARKER();
   std::lock_guard<mutex> g(m_mutexDsMemberPerformance);
 
-  // Do not determine Byzantine nodes on the first epoch when performance cannot
-  // be measured.
-  if (m_mediator.m_currentEpochNum <= 1) {
-    LOG_GENERAL(INFO,
-                "Skipping determining Byzantine nodes for removal since "
-                "performance cannot be measured on the first epoch.");
-    return 0;
-  }
-
-  // Parameters
-  uint32_t maxCoSigs = (NUM_FINAL_BLOCK_PER_POW - 1) * 2;
-  uint32_t threshold = std::ceil(DS_PERFORMANCE_THRESHOLD_PERCENT * maxCoSigs);
-  unsigned int numToRemove =
-      std::min(NUM_DS_BYZANTINE_REMOVED, numOfProposedDSMembers);
-  unsigned int index;
-
-  // Build a list of Byzantine Nodes
-  LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
-            "Evaluating performance of the current DS Committee.");
-  LOG_GENERAL(INFO, "maxCoSigs = " << maxCoSigs);
-  LOG_GENERAL(INFO, "threshold = " << threshold << " ("
-                                   << DS_PERFORMANCE_THRESHOLD_PERCENT << ")");
-  unsigned int numByzantine = 0;
-  index = 0;
-  for (auto it = m_mediator.m_DSCommittee->begin();
-       it != m_mediator.m_DSCommittee->end(); ++it) {
-    // Do not evaluate guard nodes.
-    if (GUARD_MODE && Guard::GetInstance().IsNodeInDSGuardList(it->first)) {
-      continue;
-    }
-
-    // Check if the score is below the calculated threshold.
-    uint32_t score = m_dsMemberPerformance.at(it->first);
-    if (score < threshold) {
-      // Only add the node to be removed if there is still capacity.
-      if (numByzantine < numToRemove) {
-        removeDSNodePubkeys.emplace_back(it->first);
-      }
-
-      // Log the index and public key of a found Byzantine node regardless of if
-      // they will be removed.
-      LOG_GENERAL(INFO, "[" << PAD(index++, 3, ' ') << "] " << it->first << " "
-                            << PAD(score, 4, ' ') << "/" << maxCoSigs);
-      ++numByzantine;
-    }
-  }
-
-  // Log the general statistics of the computation.
-  unsigned int numRemoved = std::min(numToRemove, numByzantine);
-  LOG_GENERAL(INFO, "Number of DS members not meeting the co-sig threshold: "
-                        << numByzantine);
-  LOG_GENERAL(INFO,
-              "Number of Byzantine DS members to be removed: " << numRemoved);
-
-  return numRemoved;
+  return InternalDetermineByzantineNodes(
+      numOfProposedDSMembers, removeDSNodePubkeys, m_mediator.m_currentEpochNum,
+      NUM_FINAL_BLOCK_PER_POW, DS_PERFORMANCE_THRESHOLD_PERCENT,
+      NUM_DS_BYZANTINE_REMOVED, *m_mediator.m_DSCommittee,
+      *m_dsMemberPerformance);
 }
 
 void DirectoryService::RunConsensusOnDSBlock(bool isRejoin) {
