@@ -136,7 +136,7 @@ BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
 }
 
 // Test the case when the number of Byzantine nodes is < maxByzantineRemoved.
-BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
+BOOST_FIXTURE_TEST_CASE(test_LessThanByzantineNodes, F) {
   INIT_STDOUT_LOGGER();
 
   // Create the expected removed node list.
@@ -182,7 +182,7 @@ BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
   for (const auto& pubkey : expectedRemovedDSNodePubkeys) {
     BOOST_CHECK_MESSAGE(
         std::find(removedDSNodePubkeys.begin(), removedDSNodePubkeys.end(),
-                  pubkey == removedDSNodePubkeys.end(),
+                  pubkey) == removedDSNodePubkeys.end(),
         "Expected pub key " << pubkey << " was not found in the result.")
   }
 }
