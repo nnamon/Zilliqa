@@ -23,7 +23,7 @@
 #include "libUtils/Logger.h"
 #include "libUtils/SWInfo.h"
 
-#define BOOST_TEST_MODULE dscomposition
+#define BOOST_TEST_MODULE determinebyzantinenodes
 #define BOOST_TEST_DYN_LINK
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -41,10 +41,14 @@
 #define DS_DIFF 1
 #define SHARD_DIFF 1
 #define GAS_PRICE 1
+#define NUM_OF_FINAL_BLOCK 100
+#define STARTING_BLOCK 200
+#define FINALBLOCK_REWARD -1
+#define PERFORMANCE_THRESHOLD 0.25
 
 using namespace std;
 
-BOOST_AUTO_TEST_SUITE(dscomposition)
+BOOST_AUTO_TEST_SUITE(determinebyzantinenodes)
 
 struct F {
   F() {
@@ -62,6 +66,10 @@ struct F {
       PairOfNode entry = std::make_pair(pk, peer);
       dsComm.emplace_back(entry);
     }
+
+    // Compute some default parameters
+    maxCoSigs = (numOfFinalBlock - 1) * 2;
+    threshold = std::ceil(performanceThreshold * maxCoSigs);
   }
 
   ~F() { BOOST_TEST_MESSAGE("teardown fixture"); }
@@ -69,185 +77,39 @@ struct F {
   PairOfKey selfKeyPair;
   PubKey selfPubKey;
   DequeOfNode dsComm;
+  uint32_t maxCoSigs;
+  uint32_t threshold;
 };
 
-// Test the original behaviour: nodes expire by having their index incremented
-// above the DS committee size.
-BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutRemovals, F) {
+// Test that performance is not taken into account on epoch 1.
+//
+BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
   INIT_STDOUT_LOGGER();
 
-  // Create the winners.
-  std::map<PubKey, Peer> winners;
-  for (int i = 0; i < NUM_OF_ELECTED; ++i) {
-    PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
-    PubKey candidatePubKey = candidateKeyPair.second;
-    Peer candidatePeer = Peer(LOCALHOST, BASE_PORT + COMMITTEE_SIZE + i);
-    winners[candidatePubKey] = candidatePeer;
+  // Create the member performance.
+  std::map<PubKey, uint32_t> dsMemberPerformance;
+  for (const auto& member : dsComm) {
+    expectedDSMemberPerformance[member.first] = std::rand() % maxCoSigs;
   }
 
-  // Create the nodes to be removed. This should be empty for this test case.
-  std::vector<PubKey> removeDSNodePubkeys;
+  // Initialise the removal list.
+  std::vector<PubKey>& removeDSNodePubkeys;
 
-  // Construct the fake DS Block.
-  PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
-  PubKey leaderPubKey = leaderKeyPair.second;
-  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
-                       GAS_PRICE, SWInfo(), winners, removeDSNodePubkeys,
-                       DSBlockHashSet());
-  DSBlock block(header, CoSignatures());
+  unsigned int removeResult = InternalDetermineByzantineNodes(
+      NUM_OF_ELECTED, removeDSNodePubkeys, 1, NUM_OF_FINAL_BLOCK,
+      PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
 
-  // Build the expected composition.
-  DequeOfNode expectedDSComm;
-  // Put the winners in front.
-  for (const auto& i : winners) {
-    // New additions are always placed at the beginning.
-    expectedDSComm.emplace_front(i);
-  }
-  // Shift the existing members less NUM_OF_ELECTED to the back of the deque.
-  for (int i = 0; i < (COMMITTEE_SIZE - NUM_OF_ELECTED); ++i) {
-    expectedDSComm.emplace_back(dsComm.at(i));
-  }
-
-  // Check expected commmitee size.
-  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
-                      "Expected DS Committee size wrong. Actual: "
-                          << expectedDSComm.size()
-                          << ". Expected: " << COMMITTEE_SIZE);
-
-  // Update the DS Composition.
-  InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
-
-  // Check updated commmitee size.
-  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
-                      "Updated DS Committee size wrong. Actual: "
-                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
-
-  // Check the result.
-  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-    // Compare the public keys.
-    PubKey actual = dsComm.at(i).first;
-    PubKey expected = expectedDSComm.at(i).first;
-    BOOST_CHECK_MESSAGE(
-        actual == expected,
-        "Index: " << i << ". Expected: " << expected << ". Result: " << actual);
-  }
+  // Check the size.
+  BOOST_CHECK_MESSAGE(
+      removeResult == 0,
+      "removeResult value wrong. Actual: " << removeResult << ". Expected: 0.");
+  BOOST_CHECK_MESSAGE(removeDSNodePubkeys.size() == 0,
+                      "removeDSNodePubkeys size wrong. Actual: "
+                          << removeDSNodePubkeys.size() << ". Expected: 0.");
 }
 
-// Test that the composition does not change when the winners is empty.
-BOOST_FIXTURE_TEST_CASE(test_UpdateWithoutWinners, F) {
-  INIT_STDOUT_LOGGER();
-
-  // Create the empty winners map.
-  std::map<PubKey, Peer> winners;
-
-  // Creat the empty nodes to be removed vector.
-  std::vector<PubKey> removeDSNodePubkeys;
-
-  // Construct the fake DS Block.
-  PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
-  PubKey leaderPubKey = leaderKeyPair.second;
-  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
-                       GAS_PRICE, SWInfo(), winners, removeDSNodePubkeys,
-                       DSBlockHashSet());
-  DSBlock block(header, CoSignatures());
-
-  // Build the expected composition.
-  DequeOfNode expectedDSComm;
-  // Copy the existing members.
-  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-    expectedDSComm.emplace_back(dsComm.at(i));
-  }
-
-  // Check expected commmitee size.
-  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
-                      "Expected DS Committee size wrong. Actual: "
-                          << expectedDSComm.size()
-                          << ". Expected: " << COMMITTEE_SIZE);
-
-  // Update the DS Composition.
-  InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
-
-  // Check updated commmitee size.
-  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
-                      "Updated DS Committee size wrong. Actual: "
-                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
-
-  // Check the result.
-  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-    // Compare the public keys.
-    PubKey actual = dsComm.at(i).first;
-    PubKey expected = expectedDSComm.at(i).first;
-    BOOST_CHECK_MESSAGE(
-        actual == expected,
-        "Index: " << i << ". Expected: " << expected << ". Result: " << actual);
-  }
-}
-
-// Test the new behaviour: remove Byzantine nodes.
-BOOST_FIXTURE_TEST_CASE(test_UpdateWithRemovals, F) {
-  INIT_STDOUT_LOGGER();
-
-  // Create the winners.
-  std::map<PubKey, Peer> winners;
-  for (int i = 0; i < NUM_OF_ELECTED; ++i) {
-    PairOfKey candidateKeyPair = Schnorr::GetInstance().GenKeyPair();
-    PubKey candidatePubKey = candidateKeyPair.second;
-    Peer candidatePeer = Peer(LOCALHOST, BASE_PORT + COMMITTEE_SIZE + i);
-    winners[candidatePubKey] = candidatePeer;
-  }
-
-  // Create the removed members.
-  std::vector<PubKey> removeDSNodePubkeys;
-  for (int i = 0; i < NUM_OF_REMOVED; ++i) {
-    PairOfNode kp = dsComm.at(i);
-    removeDSNodePubkeys.emplace_back(kp.first);
-  }
-
-  // Construct the fake DS Block.
-  PairOfKey leaderKeyPair = Schnorr::GetInstance().GenKeyPair();
-  PubKey leaderPubKey = leaderKeyPair.second;
-  DSBlockHeader header(DS_DIFF, SHARD_DIFF, leaderPubKey, BLOCK_NUM, EPOCH_NUM,
-                       GAS_PRICE, SWInfo(), winners, removeDSNodePubkeys,
-                       DSBlockHashSet());
-  DSBlock block(header, CoSignatures());
-
-  // Build the expected composition.
-  DequeOfNode expectedDSComm;
-  // Put the winners in front.
-  for (const auto& i : winners) {
-    // New additions are always placed at the beginning.
-    expectedDSComm.emplace_front(i);
-  }
-  // Shift the existing non-removed and non-expired members to the back of the
-  // deque.
-  for (int i = NUM_OF_REMOVED;
-       i < (COMMITTEE_SIZE - (NUM_OF_ELECTED - NUM_OF_REMOVED)); ++i) {
-    expectedDSComm.emplace_back(dsComm.at(i));
-  }
-
-  // Check expected commmitee size.
-  BOOST_CHECK_MESSAGE(expectedDSComm.size() == COMMITTEE_SIZE,
-                      "Expected DS Committee size wrong. Actual: "
-                          << expectedDSComm.size()
-                          << ". Expected: " << COMMITTEE_SIZE);
-
-  // Update the DS Composition.
-  InternalUpdateDSCommitteeComposition(selfPubKey, dsComm, block);
-
-  // Check updated commmitee size.
-  BOOST_CHECK_MESSAGE(dsComm.size() == COMMITTEE_SIZE,
-                      "Updated DS Committee size wrong. Actual: "
-                          << dsComm.size() << ". Expected: " << COMMITTEE_SIZE);
-
-  // Check the result.
-  for (int i = 0; i < COMMITTEE_SIZE; ++i) {
-    // Compare the public keys.
-    PubKey actual = dsComm.at(i).first;
-    PubKey expected = expectedDSComm.at(i).first;
-    BOOST_CHECK_MESSAGE(
-        actual == expected,
-        "Index: " << i << ". Expected: " << expected << ". Result: " << actual);
-  }
-}
+// Test the case when there are no Byzantine nodes.
+// Test the case when the number of Byzantine nodes is < maxByzantineRemoved.
+// Test the case when the number of Byzantine nodes is > maxByzantineRemoved.
 
 BOOST_AUTO_TEST_SUITE_END()

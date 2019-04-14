@@ -23,7 +23,7 @@
 #include "libUtils/Logger.h"
 #include "libUtils/SWInfo.h"
 
-#define BOOST_TEST_MODULE dscomposition
+#define BOOST_TEST_MODULE savedsperformance
 #define BOOST_TEST_DYN_LINK
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
