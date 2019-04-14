@@ -24,6 +24,7 @@
 #include "libNetwork/Peer.h"
 #include "libNetwork/ShardStruct.h"
 
+// Used in both libDirectoryService and libNode
 void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
                                           DequeOfNode& dsComm,
                                           const DSBlock& dsblock);
