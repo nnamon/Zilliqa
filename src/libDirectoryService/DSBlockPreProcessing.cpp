@@ -19,6 +19,7 @@
 #include <chrono>
 #include <thread>
 
+#include "DSComposition.h"
 #include "DirectoryService.h"
 #include "common/Constants.h"
 #include "common/Messages.h"
