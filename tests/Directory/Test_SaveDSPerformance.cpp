@@ -192,7 +192,7 @@ BOOST_FIXTURE_TEST_CASE(test_LegitimateCase, F) {
   // Check the result.
   for (const auto& member : dsComm) {
     BOOST_CHECK_MESSAGE(
-        dsMemberPerformance[member.first] !=
+        dsMemberPerformance[member.first] ==
             expectedDSMemberPerformance[member.first],
         "Pub Key " << member.first << " performance does not match. Actual: "
                    << dsMemberPerformance[member.first] << ". Expected: "
