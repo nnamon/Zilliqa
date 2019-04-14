@@ -317,17 +317,7 @@ bool DirectoryService::VerifyPoWWinner(
   LOG_MARKER();
 
   // Separate the PoW Winners from the nodes to be removed.
-  const auto& NewDSCandidates = m_pendingDSBlock->GetHeader().GetDSPoWWinners();
-  std::map<PubKey, Peer> NewDSMembers;
-  for (const auto& DSCandidate : NewDSCandidates) {
-    // Insert only if the candidate was not found as a current DS member.
-    if (!CheckIfDSNode(DSCandidate.first)) {
-      NewDSMembers[DSCandidate.first] = DSCandidate.second;
-    }
-  }
-
-  // From this point on, only actual PoW winners will be verified. The nodes to
-  // be removed will be verified separately.
+  const auto& NewDSMembers = m_pendingDSBlock->GetHeader().GetDSPoWWinners();
 
   // For each of the proposed DS winners,
   for (const auto& DSPowWinner : NewDSMembers) {
