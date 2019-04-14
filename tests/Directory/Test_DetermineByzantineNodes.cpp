@@ -183,7 +183,7 @@ BOOST_FIXTURE_TEST_CASE(test_LessThanByzantineNodes, F) {
     BOOST_CHECK_MESSAGE(
         std::find(removeDSNodePubkeys.begin(), removeDSNodePubkeys.end(),
                   pubkey) == removeDSNodePubkeys.end(),
-        "Expected pub key " << pubkey << " was not found in the result.")
+        "Expected pub key " << pubkey << " was not found in the result.");
   }
 }
 
