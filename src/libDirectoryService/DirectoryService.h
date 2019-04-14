@@ -307,7 +307,7 @@ class DirectoryService : public Executable {
 
   // DS Reputation
   void SaveDSPerformance();
-  void InternalSaveDSPerformance(
+  static void InternalSaveDSPerformance(
       std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
           coinbaseRewardees,
       std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
@@ -317,7 +317,7 @@ class DirectoryService : public Executable {
   unsigned int DetermineByzantineNodes(
       unsigned int numOfProposedDSMembers,
       std::vector<PubKey>& removeDSNodePubkeys);
-  unsigned int InternalDetermineByzantineNodes(
+  static unsigned int InternalDetermineByzantineNodes(
       unsigned int numOfProposedDSMembers,
       std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
       unsigned int numOfFinalBlock, double performanceThreshold,
