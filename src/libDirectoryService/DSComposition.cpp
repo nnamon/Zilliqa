@@ -19,9 +19,9 @@
 
 using namespace std;
 
-void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
-                                          DequeOfNode& dsComm,
-                                          const DSBlock& dsblock) {
+void UpdateDSCommitteeCompositionCore(const PubKey& selfKeyPub,
+                                      DequeOfNode& dsComm,
+                                      const DSBlock& dsblock) {
   LOG_MARKER();
 
   // Get the map of all pow winners from the DS Block

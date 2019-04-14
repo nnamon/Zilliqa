@@ -25,8 +25,8 @@
 #include "libNetwork/ShardStruct.h"
 
 // Used in both libDirectoryService and libNode
-void InternalUpdateDSCommitteeComposition(const PubKey& selfKeyPub,
-                                          DequeOfNode& dsComm,
-                                          const DSBlock& dsblock);
+void UpdateDSCommitteeCompositionCore(const PubKey& selfKeyPub,
+                                      DequeOfNode& dsComm,
+                                      const DSBlock& dsblock);
 
 #endif  // __DSCOMPOSITION_H__

@@ -90,7 +90,7 @@ BOOST_FIXTURE_TEST_CASE(test_EpochOne, F) {
   // Initialise the removal list.
   std::vector<PubKey> removeDSNodePubkeys;
 
-  unsigned int removeResult = DirectoryService::InternalDetermineByzantineNodes(
+  unsigned int removeResult = DirectoryService::DetermineByzantineNodesCore(
       NUM_OF_ELECTED, removeDSNodePubkeys, 1, NUM_OF_FINAL_BLOCK,
       PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
 
@@ -117,7 +117,7 @@ BOOST_FIXTURE_TEST_CASE(test_NoByzantineNodes, F) {
   // Initialise the removal list.
   std::vector<PubKey> removeDSNodePubkeys;
 
-  unsigned int removeResult = DirectoryService::InternalDetermineByzantineNodes(
+  unsigned int removeResult = DirectoryService::DetermineByzantineNodesCore(
       NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
       PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
 
@@ -160,7 +160,7 @@ BOOST_FIXTURE_TEST_CASE(test_LessThanByzantineNodes, F) {
   // Initialise the removal list.
   std::vector<PubKey> removeDSNodePubkeys;
 
-  unsigned int removeResult = DirectoryService::InternalDetermineByzantineNodes(
+  unsigned int removeResult = DirectoryService::DetermineByzantineNodesCore(
       NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
       PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
 
@@ -214,7 +214,7 @@ BOOST_FIXTURE_TEST_CASE(test_MoreThanByzantineNodes, F) {
   // Initialise the removal list.
   std::vector<PubKey> removeDSNodePubkeys;
 
-  unsigned int removeResult = DirectoryService::InternalDetermineByzantineNodes(
+  unsigned int removeResult = DirectoryService::DetermineByzantineNodesCore(
       NUM_OF_ELECTED, removeDSNodePubkeys, STARTING_BLOCK, NUM_OF_FINAL_BLOCK,
       PERFORMANCE_THRESHOLD, NUM_OF_REMOVED, dsComm, dsMemberPerformance);
 

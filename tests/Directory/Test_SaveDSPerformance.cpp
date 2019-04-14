@@ -94,7 +94,7 @@ BOOST_FIXTURE_TEST_CASE(test_CleanSave, F) {
     dsMemberPerformance[member.first] = 10;
   }
 
-  DirectoryService::InternalSaveDSPerformance(
+  DirectoryService::SaveDSPerformanceCore(
       coinbaseRewardees, dsMemberPerformance, dsComm, EPOCH_NUM,
       NUM_OF_FINAL_BLOCK, FINALBLOCK_REWARD);
 
@@ -177,7 +177,7 @@ BOOST_FIXTURE_TEST_CASE(test_LegitimateCase, F) {
   // Create the member performance.
   std::map<PubKey, uint32_t> dsMemberPerformance;
 
-  DirectoryService::InternalSaveDSPerformance(
+  DirectoryService::SaveDSPerformanceCore(
       coinbaseRewardees, dsMemberPerformance, dsComm, EPOCH_NUM,
       NUM_OF_FINAL_BLOCK, FINALBLOCK_REWARD);
 

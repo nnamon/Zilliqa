@@ -646,13 +646,13 @@ class DirectoryService : public Executable {
   std::string GetStateString() const;
 
   // DS Reputation functions with no state access.
-  static void InternalSaveDSPerformance(
+  static void SaveDSPerformanceCore(
       std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
           coinbaseRewardees,
       std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
       uint64_t currentEpochNum, unsigned int numOfFinalBlock,
       int finalblockRewardID);
-  static unsigned int InternalDetermineByzantineNodes(
+  static unsigned int DetermineByzantineNodesCore(
       unsigned int numOfProposedDSMembers,
       std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
       unsigned int numOfFinalBlock, double performanceThreshold,

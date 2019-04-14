@@ -1338,7 +1338,7 @@ bool DirectoryService::ProcessShardingStructure(
   return true;
 }
 
-void DirectoryService::InternalSaveDSPerformance(
+void DirectoryService::SaveDSPerformanceCore(
     std::map<uint64_t, std::map<int32_t, std::vector<PubKey>>>&
         coinbaseRewardees,
     std::map<PubKey, uint32_t>& dsMemberPerformance, DequeOfNode& dsComm,
@@ -1394,13 +1394,13 @@ void DirectoryService::SaveDSPerformance() {
   std::lock_guard<mutex> h(m_mutexCoinbaseRewardees, std::adopt_lock);
   std::lock_guard<mutex> g(m_mutexDsMemberPerformance, std::adopt_lock);
 
-  InternalSaveDSPerformance(
-      m_coinbaseRewardees, m_dsMemberPerformance, *m_mediator.m_DSCommittee,
-      m_mediator.m_currentEpochNum, NUM_FINAL_BLOCK_PER_POW,
-      CoinbaseReward::FINALBLOCK_REWARD);
+  SaveDSPerformanceCore(m_coinbaseRewardees, m_dsMemberPerformance,
+                        *m_mediator.m_DSCommittee, m_mediator.m_currentEpochNum,
+                        NUM_FINAL_BLOCK_PER_POW,
+                        CoinbaseReward::FINALBLOCK_REWARD);
 }
 
-unsigned int DirectoryService::InternalDetermineByzantineNodes(
+unsigned int DirectoryService::DetermineByzantineNodesCore(
     unsigned int numOfProposedDSMembers,
     std::vector<PubKey>& removeDSNodePubkeys, uint64_t currentEpochNum,
     unsigned int numOfFinalBlock, double performanceThreshold,
@@ -1471,7 +1471,7 @@ unsigned int DirectoryService::DetermineByzantineNodes(
   std::lock_guard<mutex> g(m_mutexDsMemberPerformance, std::adopt_lock);
   std::lock_guard<mutex> g2(m_mediator.m_mutexDSCommittee, std::adopt_lock);
 
-  return InternalDetermineByzantineNodes(
+  return DetermineByzantineNodesCore(
       numOfProposedDSMembers, removeDSNodePubkeys, m_mediator.m_currentEpochNum,
       NUM_FINAL_BLOCK_PER_POW, DS_PERFORMANCE_THRESHOLD_PERCENT,
       NUM_DS_BYZANTINE_REMOVED, *m_mediator.m_DSCommittee,
