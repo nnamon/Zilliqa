@@ -1407,7 +1407,7 @@ unsigned int DirectoryService::DetermineByzantineNodes(
       numOfProposedDSMembers, removeDSNodePubkeys, m_mediator.m_currentEpochNum,
       NUM_FINAL_BLOCK_PER_POW, DS_PERFORMANCE_THRESHOLD_PERCENT,
       NUM_DS_BYZANTINE_REMOVED, *m_mediator.m_DSCommittee,
-      *m_dsMemberPerformance);
+      m_dsMemberPerformance);
 }
 
 void DirectoryService::RunConsensusOnDSBlock(bool isRejoin) {
