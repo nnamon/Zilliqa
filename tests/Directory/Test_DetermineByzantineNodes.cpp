@@ -36,11 +36,6 @@
 #define NUM_OF_REMOVED 3
 #define LOCALHOST 0x7F000001
 #define BASE_PORT 2600
-#define BLOCK_NUM 1
-#define EPOCH_NUM 1
-#define DS_DIFF 1
-#define SHARD_DIFF 1
-#define GAS_PRICE 1
 #define NUM_OF_FINAL_BLOCK 100
 #define STARTING_BLOCK 200
 #define FINALBLOCK_REWARD -1
