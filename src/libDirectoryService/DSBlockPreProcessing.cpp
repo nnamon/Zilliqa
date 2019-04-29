@@ -759,10 +759,11 @@ VectorOfPoWSoln DirectoryService::SortPoWSoln(
     // Number of Nodes to Trim. Account for the removed Byzantine nodes that do
     // not get injected as a shard solution.
     const uint32_t numNodesAfterTrim =
-        ShardSizeCalculator::GetTrimmedShardCount(
-            m_mediator.GetShardSize(false), SHARD_SIZE_TOLERANCE_LO,
-            SHARD_SIZE_TOLERANCE_HI, numNodesTotal) +
-        byzantineRemoved;
+        std::min(ShardSizeCalculator::GetTrimmedShardCount(
+                     m_mediator.GetShardSize(false), SHARD_SIZE_TOLERANCE_LO,
+                     SHARD_SIZE_TOLERANCE_HI, numNodesTotal) +
+                     byzantineRemoved,
+                 numNodesTotal);
 
     LOG_GENERAL(INFO, "Trimming the solutions sorted list from "
                           << numNodesTotal << " to " << numNodesAfterTrim);
