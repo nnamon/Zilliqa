@@ -927,9 +927,9 @@ bool DirectoryService::RunConsensusOnDSBlockWhenDSPrimary() {
   BlockHash prevHash;
 
   // Determine the DS PoW winners.
-  unsigned int numOfProposedDSMembers = ComputeDSBlockParameters(
-      sortedDSPoWSolns, sortedPoWSolns, powDSWinners, dsWinnerPoWs,
-      dsDifficulty, difficulty, blockNum, prevHash);
+  unsigned int numOfProposedDSMembers =
+      ComputeDSBlockParameters(sortedDSPoWSolns, powDSWinners, dsWinnerPoWs,
+                               dsDifficulty, difficulty, blockNum, prevHash);
 
   // Determine the losers from the performance.
   unsigned int numByzantine =
