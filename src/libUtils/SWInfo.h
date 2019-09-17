@@ -22,6 +22,10 @@
 #include <iostream>
 #include "common/Serializable.h"
 
+const std::string VERSION_TAG = "v4.4.1";
+const std::string ZILLIQA_BRAND = "Copyright (C) Zilliqa. Version " +
+                                  VERSION_TAG + ".  <https://www.zilliqa.com/>";
+
 class SWInfo : public Serializable {
   uint32_t m_zilliqaMajorVersion;
   uint32_t m_zilliqaMinorVersion;
@@ -87,11 +91,7 @@ class SWInfo : public Serializable {
   const uint64_t& GetScillaUpgradeDS() const;
   const uint32_t& GetScillaCommit() const;
 
-  static void LogBrand() {
-    std::cout << "Copyright (C) Zilliqa. Version 4.0.2. "
-                 "<https://www.zilliqa.com/> "
-              << std::endl;
-  }
+  static void LogBrand() { std::cout << ZILLIQA_BRAND << std::endl; }
 
   static void LogBugReport() {
     std::cout << "For bug reporting, please create an issue at "
@@ -103,6 +103,8 @@ class SWInfo : public Serializable {
     LogBrand();
     LogBugReport();
   }
+
+  static bool IsLatestVersion();
 
   friend std::ostream& operator<<(std::ostream& os, const SWInfo& t);
 };

@@ -41,6 +41,12 @@ unsigned int ReadConstantNumeric(const string& propertyName,
   return pt.get<unsigned int>(path + propertyName);
 }
 
+double ReadConstantDouble(const string& propertyName,
+                          const char* path = "node.general.") {
+  auto pt = PTree::GetInstance();
+  return pt.get<double>(path + propertyName);
+}
+
 string ReadConstantString(string propertyName,
                           const char* path = "node.general.") {
   auto pt = PTree::GetInstance();
@@ -69,6 +75,8 @@ const unsigned int MAX_ENTRIES_FOR_DIAGNOSTIC_DATA{
 const uint16_t CHAIN_ID{(uint16_t)ReadConstantNumeric("CHAIN_ID")};
 const string GENESIS_PUBKEY{
     ReadConstantString("GENESIS_PUBKEY", "node.general.")};
+const unsigned int UPGRADE_TARGET_DS_NUM{
+    ReadConstantNumeric("UPGRADE_TARGET_DS_NUM")};
 
 // Version constants
 const unsigned int MSG_VERSION{
@@ -109,8 +117,12 @@ const unsigned int CONSENSUS_MSG_ORDER_BLOCK_WINDOW{
     ReadConstantNumeric("CONSENSUS_MSG_ORDER_BLOCK_WINDOW", "node.consensus.")};
 const unsigned int CONSENSUS_OBJECT_TIMEOUT{
     ReadConstantNumeric("CONSENSUS_OBJECT_TIMEOUT", "node.consensus.")};
-const unsigned int NUM_CONSENSUS_SUBSETS{
-    ReadConstantNumeric("NUM_CONSENSUS_SUBSETS", "node.consensus.")};
+const unsigned int DS_NUM_CONSENSUS_SUBSETS{
+    ReadConstantNumeric("DS_NUM_CONSENSUS_SUBSETS", "node.consensus.")};
+const unsigned int SHARD_NUM_CONSENSUS_SUBSETS{
+    ReadConstantNumeric("SHARD_NUM_CONSENSUS_SUBSETS", "node.consensus.")};
+const unsigned int COMMIT_TOLERANCE_PERCENT{
+    ReadConstantNumeric("COMMIT_TOLERANCE_PERCENT", "node.consensus.")};
 
 // Data sharing constants
 const bool BROADCAST_TREEBASED_CLUSTER_MODE{
@@ -139,8 +151,8 @@ const unsigned int DELAY_FIRSTXNEPOCH_IN_MS{
     ReadConstantNumeric("DELAY_FIRSTXNEPOCH_IN_MS", "node.epoch_timing.")};
 const unsigned int FETCHING_MISSING_DATA_TIMEOUT{
     ReadConstantNumeric("FETCHING_MISSING_DATA_TIMEOUT", "node.epoch_timing.")};
-const unsigned int FINALBLOCK_DELAY_IN_MS{
-    ReadConstantNumeric("FINALBLOCK_DELAY_IN_MS", "node.epoch_timing.")};
+const unsigned int ANNOUNCEMENT_DELAY_IN_MS{
+    ReadConstantNumeric("ANNOUNCEMENT_DELAY_IN_MS", "node.epoch_timing.")};
 const unsigned int LOOKUP_DELAY_SEND_TXNPACKET_IN_MS{ReadConstantNumeric(
     "LOOKUP_DELAY_SEND_TXNPACKET_IN_MS", "node.epoch_timing.")};
 const unsigned int MICROBLOCK_TIMEOUT{
@@ -159,6 +171,14 @@ const unsigned int TX_DISTRIBUTE_TIME_IN_MS{
     ReadConstantNumeric("TX_DISTRIBUTE_TIME_IN_MS", "node.epoch_timing.")};
 const unsigned int NEW_LOOKUP_SYNC_DELAY_IN_SECONDS{ReadConstantNumeric(
     "NEW_LOOKUP_SYNC_DELAY_IN_SECONDS", "node.epoch_timing.")};
+const unsigned int NEW_LOOKUP_GETSHARD_TIMEOUT_IN_SECONDS{ReadConstantNumeric(
+    "NEW_LOOKUP_GETSHARD_TIMEOUT_IN_SECONDS", "node.epoch_timing.")};
+const unsigned int GETSTATEDELTAS_TIMEOUT_IN_SECONDS{ReadConstantNumeric(
+    "GETSTATEDELTAS_TIMEOUT_IN_SECONDS", "node.epoch_timing.")};
+const unsigned int RETRY_REJOINING_TIMEOUT{
+    ReadConstantNumeric("RETRY_REJOINING_TIMEOUT", "node.epoch_timing.")};
+const unsigned int RETRY_GETSTATEDELTAS_COUNT{
+    ReadConstantNumeric("RETRY_GETSTATEDELTAS_COUNT", "node.epoch_timing.")};
 
 // Fallback constants
 const bool ENABLE_FALLBACK{
@@ -261,10 +281,19 @@ const bool EXCLUDE_PRIV_IP{
     ReadConstantString("EXCLUDE_PRIV_IP", "node.guard_mode.") == "true"};
 const unsigned int WINDOW_FOR_DS_NETWORK_INFO_UPDATE{ReadConstantNumeric(
     "WINDOW_FOR_DS_NETWORK_INFO_UPDATE", "node.guard_mode.")};
-
+const double SHARD_GUARD_TOL{
+    ReadConstantDouble("SHARD_GUARD_TOL", "node.guard_mode.")};
+const unsigned int SHARD_LEADER_SELECT_TOL{
+    ReadConstantNumeric("SHARD_LEADER_SELECT_TOL", "node.guard_mode.")};
 // Heartbeat constants
 const unsigned int HEARTBEAT_INTERVAL_IN_SECONDS{
     ReadConstantNumeric("HEARTBEAT_INTERVAL_IN_SECONDS", "node.heartbeat.")};
+
+// RPC Constants
+const unsigned int RPC_PORT{ReadConstantNumeric("RPC_PORT", "node.jsonrpc.")};
+const std::string IP_TO_BIND{ReadConstantString("IP_TO_BIND", "node.jsonrpc.")};
+const bool ENABLE_STATUS_RPC{
+    ReadConstantString("ENABLE_STATUS_RPC", "node.jsonrpc.") == "true"};
 
 // Network composition constants
 const unsigned int COMM_SIZE{
@@ -298,6 +327,10 @@ const unsigned int MIN_READ_WATERMARK_IN_BYTES{
     ReadConstantNumeric("MIN_READ_WATERMARK_IN_BYTES", "node.p2pcomm.")};
 const unsigned int MAX_READ_WATERMARK_IN_BYTES{
     ReadConstantNumeric("MAX_READ_WATERMARK_IN_BYTES", "node.p2pcomm.")};
+const unsigned int CONNECTION_TIMEOUT_IN_SECONDS{
+    ReadConstantNumeric("CONNECTION_TIMEOUT_IN_SECONDS", "node.p2pcomm.")};
+const unsigned int BLACKLIST_NUM_TO_POP{
+    ReadConstantNumeric("BLACKLIST_NUM_TO_POP", "node.p2pcomm.")};
 
 // PoW constants
 const bool CUDA_GPU_MINE{ReadConstantString("CUDA_GPU_MINE", "node.pow.") ==
@@ -320,6 +353,10 @@ const unsigned int DS_POW_DIFFICULTY{
     ReadConstantNumeric("DS_POW_DIFFICULTY", "node.pow.")};
 const unsigned int POW_DIFFICULTY{
     ReadConstantNumeric("POW_DIFFICULTY", "node.pow.")};
+const unsigned int POW_BOUNDARY_N_DIVIDED{
+    ReadConstantNumeric("POW_BOUNDARY_N_DIVIDED", "node.pow.")};
+const unsigned int POW_BOUNDARY_N_DIVIDED_START{
+    ReadConstantNumeric("POW_BOUNDARY_N_DIVIDED_START", "node.pow.")};
 const unsigned int POW_SUBMISSION_LIMIT{
     ReadConstantNumeric("POW_SUBMISSION_LIMIT", "node.pow.")};
 const unsigned int NUM_FINAL_BLOCK_PER_POW{
@@ -370,8 +407,12 @@ const bool REJOIN_NODE_NOT_IN_NETWORK{
     "true"};
 const unsigned int RESUME_BLACKLIST_DELAY_IN_SECONDS{
     ReadConstantNumeric("RESUME_BLACKLIST_DELAY_IN_SECONDS", "node.recovery.")};
+const unsigned int INCRDB_DSNUMS_WITH_STATEDELTAS{
+    ReadConstantNumeric("INCRDB_DSNUMS_WITH_STATEDELTAS", "node.recovery.")};
 
 // Smart contract constants
+const bool ENABLE_SC{ReadConstantString("ENABLE_SC", "node.smart_contract.") ==
+                     "true"};
 const string SCILLA_ROOT{
     ReadConstantString("SCILLA_ROOT", "node.smart_contract.")};
 const string SCILLA_CHECKER{
@@ -415,6 +456,12 @@ const unsigned int FALLBACK_TEST_EPOCH{
 #endif  // FALLBACK_TEST
 const unsigned int NUM_TXN_TO_SEND_PER_ACCOUNT{
     ReadConstantNumeric("NUM_TXN_TO_SEND_PER_ACCOUNT", "node.tests.")};
+const bool ENABLE_ACCOUNTS_POPULATING{
+    ReadConstantString("ENABLE_ACCOUNTS_POPULATING", "node.tests.") == "true"};
+const unsigned int NUM_ACCOUNTS_PREGENERATE{
+    ReadConstantNumeric("NUM_ACCOUNTS_PREGENERATE", "node.tests.")};
+const string PREGENED_ACCOUNTS_FILE{
+    ReadConstantString("PREGENED_ACCOUNTS_FILE", "node.tests.")};
 
 // Transaction constants
 const boost::multiprecision::uint128_t TOTAL_COINBASE_REWARD{
@@ -441,6 +488,15 @@ const unsigned int PACKET_BYTESIZE_LIMIT{
     ReadConstantNumeric("PACKET_BYTESIZE_LIMIT", "node.transactions.")};
 const unsigned int SMALL_TXN_SIZE{
     ReadConstantNumeric("SMALL_TXN_SIZE", "node.transactions.")};
+const unsigned int ACCOUNT_IO_BATCH_SIZE{
+    ReadConstantNumeric("ACCOUNT_IO_BATCH_SIZE", "node.transactions.")};
+const bool ENABLE_REPOPULATE{
+    ReadConstantString("ENABLE_REPOPULATE", "node.transactions.") == "true"};
+const unsigned int REPOPULATE_STATE_PER_N_DS{
+    ReadConstantNumeric("REPOPULATE_STATE_PER_N_DS", "node.transactions.")};
+const unsigned int REPOPULATE_STATE_IN_DS{std::min(
+    ReadConstantNumeric("REPOPULATE_STATE_IN_DS", "node.transactions."),
+    REPOPULATE_STATE_PER_N_DS - 1)};
 
 // Viewchange constants
 const unsigned int POST_VIEWCHANGE_BUFFER{

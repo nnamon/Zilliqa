@@ -124,13 +124,22 @@ class AccountStore
   /// empty states data in memory
   void InitSoft();
 
+  /// Reset the reference to underlying leveldb
+  void RefreshDB();
+
+  bool UpdateStateTrieFromTempStateDB();
+
+  bool RepopulateStateTrie();
+
   /// commit the in-memory states into persistent storage
-  bool MoveUpdatesToDisk();
+  bool MoveUpdatesToDisk(bool repopulate = false);
   /// discard all the changes in memory and reset the states from last
   /// checkpoint in persistent storage
   void DiscardUnsavedUpdates();
   /// repopulate the in-memory data structures from persistent storage
   bool RetrieveFromDisk();
+
+  Account* GetAccountTemp(const Address& address);
 
   /// update account states in AccountStoreTemp
   bool UpdateAccountsTemp(const uint64_t& blockNum,

@@ -15,14 +15,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <jsonrpccpp/common/exception.h>
-#include <jsonrpccpp/server/connectors/httpserver.h>
 #include <chrono>
 
 #include "Zilliqa.h"
 #include "common/Constants.h"
 #include "common/MessageNames.h"
 #include "common/Serializable.h"
+#include "depends/safeserver/safehttpserver.h"
+#include "depends/safeserver/safetcpsocketserver.h"
 #include "libCrypto/Schnorr.h"
 #include "libCrypto/Sha2.h"
 #include "libData/AccountData/Address.h"
@@ -81,8 +81,8 @@ void Zilliqa::ProcessMessage(pair<bytes, Peer>* message) {
   if (message->first.size() >= MessageOffset::BODY) {
     const unsigned char msg_type = message->first.at(MessageOffset::TYPE);
 
-    // To-do: Remove consensus user placeholder
-    Executable* msg_handlers[] = {&m_pm, &m_ds, &m_n, NULL, &m_lookup};
+    // To-do: Remove consensus user and peer manager placeholders
+    Executable* msg_handlers[] = {NULL, &m_ds, &m_n, NULL, &m_lookup};
 
     const unsigned int msg_handlers_count =
         sizeof(msg_handlers) / sizeof(Executable*);
@@ -90,6 +90,7 @@ void Zilliqa::ProcessMessage(pair<bytes, Peer>* message) {
     if (msg_type < msg_handlers_count) {
       if (msg_handlers[msg_type] == NULL) {
         LOG_GENERAL(WARNING, "Message type NULL");
+        delete message;
         return;
       }
 
@@ -128,16 +129,13 @@ void Zilliqa::ProcessMessage(pair<bytes, Peer>* message) {
   delete message;
 }
 
-Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
-                 unsigned int syncType, bool toRetrieveHistory)
-    : m_pm(key, peer, loadConfig),
-      m_mediator(key, peer),
+Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, SyncType syncType,
+                 bool toRetrieveHistory)
+    : m_mediator(key, peer),
       m_ds(m_mediator),
-      m_lookup(m_mediator),
+      m_lookup(m_mediator, syncType),
       m_n(m_mediator, syncType, toRetrieveHistory),
-      m_msgQueue(MSGQUEUE_SIZE),
-      m_httpserver(SERVER_PORT),
-      m_server(m_mediator, m_httpserver)
+      m_msgQueue(MSGQUEUE_SIZE)
 
 {
   LOG_MARKER();
@@ -158,6 +156,18 @@ Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
   DetachedFunction(1, funcCheckMsgQueue);
 
   m_validator = make_shared<Validator>(m_mediator);
+
+  if (LOOKUP_NODE_MODE) {
+    m_serverConnector = make_unique<SafeHttpServer>(RPC_PORT);
+
+  } else {
+    m_serverConnector = make_unique<SafeTcpSocketServer>(IP_TO_BIND, RPC_PORT);
+  }
+  if (m_serverConnector == nullptr) {
+    LOG_GENERAL(FATAL, "m_serverConnector NULL");
+  }
+  m_server = make_unique<Server>(m_mediator, *m_serverConnector);
+
   m_mediator.RegisterColleagues(&m_ds, &m_n, &m_lookup, m_validator.get());
 
   {
@@ -171,7 +181,7 @@ Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
   if (ARCHIVAL_LOOKUP && !LOOKUP_NODE_MODE) {
     LOG_GENERAL(FATAL, "Archvial lookup is true but not lookup ");
   } else if (ARCHIVAL_LOOKUP && LOOKUP_NODE_MODE) {
-    m_server.StartCollectorThread();
+    m_server->StartCollectorThread();
   }
 
   P2PComm::GetInstance().SetSelfPeer(peer);
@@ -194,22 +204,39 @@ Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
   }
 
   auto func = [this, toRetrieveHistory, syncType, key, peer]() mutable -> void {
-    if (!m_n.Install((SyncType)syncType, toRetrieveHistory)) {
+    LogSelfNodeInfo(key, peer);
+    while (!m_n.Install((SyncType)syncType, toRetrieveHistory)) {
       if (LOOKUP_NODE_MODE) {
         syncType = SyncType::LOOKUP_SYNC;
+        m_mediator.m_lookup->SetSyncType(SyncType::LOOKUP_SYNC);
+        break;
+      } else if (toRetrieveHistory && (SyncType::NEW_LOOKUP_SYNC == syncType ||
+                                       SyncType::NEW_SYNC == syncType)) {
+        m_n.CleanVariables();
+        while (!m_n.DownloadPersistenceFromS3()) {
+          LOG_GENERAL(
+              WARNING,
+              "Downloading persistence from S3 has failed. Will try again!");
+          this_thread::sleep_for(chrono::seconds(RETRY_REJOINING_TIMEOUT));
+        }
+        BlockStorage::GetBlockStorage().RefreshAll();
+        AccountStore::GetInstance().RefreshDB();
       } else {
-        syncType = SyncType::NORMAL_SYNC;
-
+        m_mediator.m_lookup->SetSyncType(SyncType::NO_SYNC);
+        bool isDsNode = false;
         for (const auto& ds : *m_mediator.m_DSCommittee) {
           if (ds.first == m_mediator.m_selfKey.second) {
-            syncType = SyncType::DS_SYNC;
+            isDsNode = true;
+            m_ds.RejoinAsDS();
             break;
           }
         }
+        if (!isDsNode) {
+          m_n.RejoinAsNormal();
+        }
+        break;
       }
     }
-
-    LogSelfNodeInfo(key, peer);
 
     switch (syncType) {
       case SyncType::NO_SYNC:
@@ -217,47 +244,50 @@ Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
         break;
       case SyncType::NEW_SYNC:
         LOG_GENERAL(INFO, "Sync as a new node");
-        if (!toRetrieveHistory) {
-          m_mediator.m_lookup->SetSyncType(SyncType::NEW_SYNC);
+        if (toRetrieveHistory) {
           m_n.m_runFromLate = true;
           m_n.StartSynchronization();
         } else {
           LOG_GENERAL(WARNING,
-                      "Error: Sync for new node shouldn't retrieve history");
+                      "Error: Sync for new node should retrieve history as "
+                      "much as possible!");
         }
         break;
       case SyncType::NEW_LOOKUP_SYNC:
         LOG_GENERAL(INFO, "Sync as a new lookup node");
-        if (!toRetrieveHistory) {
-          m_mediator.m_lookup->SetSyncType(SyncType::NEW_LOOKUP_SYNC);
+        if (toRetrieveHistory) {
           m_lookup.InitSync();
         } else {
           LOG_GENERAL(FATAL,
-                      "Error: Sync for new lookup shouldn't retrieve history");
+                      "Error: Sync for new lookup should retrieve history as "
+                      "much as possible");
         }
         break;
       case SyncType::NORMAL_SYNC:
         LOG_GENERAL(INFO, "Sync as a normal node");
-        m_mediator.m_lookup->SetSyncType(SyncType::NORMAL_SYNC);
         m_n.m_runFromLate = true;
         m_n.StartSynchronization();
         break;
       case SyncType::DS_SYNC:
         LOG_GENERAL(INFO, "Sync as a ds node");
-        m_mediator.m_lookup->SetSyncType(SyncType::DS_SYNC);
         m_ds.StartSynchronization();
         break;
       case SyncType::LOOKUP_SYNC:
         LOG_GENERAL(INFO, "Sync as a lookup node");
-        m_mediator.m_lookup->SetSyncType(SyncType::LOOKUP_SYNC);
         m_lookup.StartSynchronization();
         break;
       case SyncType::RECOVERY_ALL_SYNC:
         LOG_GENERAL(INFO, "Recovery all nodes, no Sync Needed");
+        // When doing recovery, make sure to let other lookups know I'm back
+        // online
+        if (LOOKUP_NODE_MODE) {
+          if (!m_mediator.m_lookup->GetMyLookupOnline(true)) {
+            LOG_GENERAL(WARNING, "Failed to notify lookups I am back online");
+          }
+        }
         break;
       case SyncType::GUARD_DS_SYNC:
         LOG_GENERAL(INFO, "Sync as a ds guard node");
-        m_mediator.m_lookup->SetSyncType(SyncType::GUARD_DS_SYNC);
         m_ds.m_awaitingToSubmitNetworkInfoUpdate = true;
         m_ds.StartSynchronization();
         break;
@@ -293,11 +323,18 @@ Zilliqa::Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
       // m_mediator.HeartBeatLaunch();
     } else {
       LOG_GENERAL(INFO, "I am a lookup node.");
-      if (m_server.StartListening()) {
-        LOG_GENERAL(INFO, "API Server started successfully");
-        m_lookup.SetServerTrue();
-      } else {
-        LOG_GENERAL(WARNING, "API Server couldn't start");
+      m_lookup.SetServerTrue();
+    }
+
+    if (m_server == nullptr) {
+      LOG_GENERAL(INFO, "Pointer unitialized");
+    } else {
+      if ((LOOKUP_NODE_MODE) || (ENABLE_STATUS_RPC)) {
+        if (m_server->StartListening()) {
+          LOG_GENERAL(INFO, "API Server started successfully");
+        } else {
+          LOG_GENERAL(WARNING, "API Server couldn't start");
+        }
       }
     }
   };
@@ -318,30 +355,4 @@ void Zilliqa::Dispatch(pair<bytes, Peer>* message) {
   if (!m_msgQueue.bounded_push(message)) {
     LOG_GENERAL(WARNING, "Input MsgQueue is full");
   }
-}
-
-vector<Peer> Zilliqa::RetrieveBroadcastList(unsigned char msg_type,
-                                            unsigned char ins_type,
-                                            const Peer& from) {
-  // LOG_MARKER();
-
-  // To-do: Remove consensus user placeholder
-  Broadcastable* msg_handlers[] = {&m_pm, &m_ds, &m_n, NULL, &m_lookup};
-
-  const unsigned int msg_handlers_count =
-      sizeof(msg_handlers) / sizeof(Broadcastable*);
-
-  if (msg_type < msg_handlers_count) {
-    if (msg_handlers[msg_type] == NULL) {
-      LOG_GENERAL(WARNING, "Message type NULL");
-      return vector<Peer>();
-    }
-
-    return msg_handlers[msg_type]->GetBroadcastList(ins_type, from);
-  } else {
-    LOG_GENERAL(WARNING,
-                "Unknown message type " << std::hex << (unsigned int)msg_type);
-  }
-
-  return vector<Peer>();
 }

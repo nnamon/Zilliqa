@@ -26,9 +26,18 @@
 #include <vector>
 
 #include "libCrypto/MultiSig.h"
-#include "libNetwork/PeerStore.h"
 #include "libNetwork/ShardStruct.h"
 #include "libUtils/TimeLockedFunction.h"
+
+struct ChallengeSubsetInfo {
+  CommitPoint aggregatedCommit;
+  PubKey aggregatedKey;
+  Challenge challenge;
+};
+
+struct ResponseSubsetInfo {
+  Response response;
+};
 
 /// Implements base functionality shared between all consensus committee members
 class ConsensusCommon {
@@ -205,9 +214,10 @@ class ConsensusCommon {
   /// Returns the state of the active consensus session
   State GetState() const;
 
-  /// Returns the consensus ID indicated in the message
-  bool GetConsensusID(const bytes& message, const unsigned int offset,
-                      uint32_t& consensusID, PubKey& senderPubKey) const;
+  /// Returns some general data about the consensus message
+  bool PreProcessMessage(const bytes& message, const unsigned int offset,
+                         uint32_t& consensusID, PubKey& senderPubKey,
+                         bytes& reserializedMessage) const;
 
   /// Returns the consensus error code
   ConsensusErrorCode GetConsensusErrorCode() const;

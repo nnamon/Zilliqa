@@ -63,10 +63,11 @@ const unsigned int IP_SIZE = 16;
 const unsigned int PORT_SIZE = 4;
 
 const unsigned int NUM_PEERS_TO_SEND_IN_A_SHARD = 20;
-const unsigned int SERVER_PORT = 4201;
 
 // Number of initial ds epoch number, including genesis epoch
 const unsigned int INIT_DS_EPOCH_NUM = 2;
+
+const unsigned int MAINNET_CHAIN_ID = 1;
 
 // Testing parameters
 
@@ -88,7 +89,8 @@ enum SyncType : unsigned int {
   RECOVERY_ALL_SYNC,
   NEW_LOOKUP_SYNC,
   GUARD_DS_SYNC,
-  DB_VERIF
+  DB_VERIF,
+  SYNC_TYPE_COUNT
 };
 
 namespace Contract {
@@ -126,6 +128,7 @@ extern const bool LOOKUP_NODE_MODE;
 extern const unsigned int MAX_ENTRIES_FOR_DIAGNOSTIC_DATA;
 extern const uint16_t CHAIN_ID;
 extern const std::string GENESIS_PUBKEY;
+extern const unsigned int UPGRADE_TARGET_DS_NUM;
 
 // Version constants
 extern const unsigned int MSG_VERSION;
@@ -149,7 +152,9 @@ extern const unsigned int SEED_TXN_COLLECTION_TIME_IN_SEC;
 extern const unsigned int COMMIT_WINDOW_IN_SECONDS;
 extern const unsigned int CONSENSUS_MSG_ORDER_BLOCK_WINDOW;
 extern const unsigned int CONSENSUS_OBJECT_TIMEOUT;
-extern const unsigned int NUM_CONSENSUS_SUBSETS;
+extern const unsigned int DS_NUM_CONSENSUS_SUBSETS;
+extern const unsigned int SHARD_NUM_CONSENSUS_SUBSETS;
+extern const unsigned int COMMIT_TOLERANCE_PERCENT;
 
 // Data sharing constants
 extern const bool BROADCAST_TREEBASED_CLUSTER_MODE;
@@ -167,7 +172,7 @@ extern const std::string TXN_PATH;
 // Epoch timing constants
 extern const unsigned int DELAY_FIRSTXNEPOCH_IN_MS;
 extern const unsigned int FETCHING_MISSING_DATA_TIMEOUT;
-extern const unsigned int FINALBLOCK_DELAY_IN_MS;
+extern const unsigned int ANNOUNCEMENT_DELAY_IN_MS;
 extern const unsigned int LOOKUP_DELAY_SEND_TXNPACKET_IN_MS;
 extern const unsigned int MICROBLOCK_TIMEOUT;
 extern const unsigned int NEW_NODE_SYNC_INTERVAL;
@@ -177,6 +182,10 @@ extern const unsigned int POWPACKETSUBMISSION_WINDOW_IN_SECONDS;
 extern const unsigned int RECOVERY_SYNC_TIMEOUT;
 extern const unsigned int TX_DISTRIBUTE_TIME_IN_MS;
 extern const unsigned int NEW_LOOKUP_SYNC_DELAY_IN_SECONDS;
+extern const unsigned int NEW_LOOKUP_GETSHARD_TIMEOUT_IN_SECONDS;
+extern const unsigned int GETSTATEDELTAS_TIMEOUT_IN_SECONDS;
+extern const unsigned int RETRY_REJOINING_TIMEOUT;
+extern const unsigned int RETRY_GETSTATEDELTAS_COUNT;
 
 // Fallback constants
 extern const bool ENABLE_FALLBACK;
@@ -232,9 +241,16 @@ extern const unsigned int CUDA_SCHEDULE_FLAG;
 extern const bool GUARD_MODE;
 extern const bool EXCLUDE_PRIV_IP;
 extern const unsigned int WINDOW_FOR_DS_NETWORK_INFO_UPDATE;
+extern const double SHARD_GUARD_TOL;
+extern const unsigned int SHARD_LEADER_SELECT_TOL;
 
 // Heartbeat constants
 extern const unsigned int HEARTBEAT_INTERVAL_IN_SECONDS;
+
+// RPC Constants
+extern const unsigned int RPC_PORT;
+extern const std::string IP_TO_BIND;  // Only for non-lookup nodes
+extern const bool ENABLE_STATUS_RPC;  //
 
 // Network composition constants
 extern const unsigned int COMM_SIZE;
@@ -254,6 +270,8 @@ extern const unsigned int SENDQUEUE_SIZE;
 extern const unsigned int MAX_GOSSIP_MSG_SIZE_IN_BYTES;
 extern const unsigned int MIN_READ_WATERMARK_IN_BYTES;
 extern const unsigned int MAX_READ_WATERMARK_IN_BYTES;
+extern const unsigned int CONNECTION_TIMEOUT_IN_SECONDS;
+extern const unsigned int BLACKLIST_NUM_TO_POP;
 
 // PoW constants
 extern const bool CUDA_GPU_MINE;
@@ -266,6 +284,8 @@ extern const bool GETWORK_SERVER_MINE;
 extern const unsigned int GETWORK_SERVER_PORT;
 extern const unsigned int DS_POW_DIFFICULTY;
 extern const unsigned int POW_DIFFICULTY;
+extern const unsigned int POW_BOUNDARY_N_DIVIDED;
+extern const unsigned int POW_BOUNDARY_N_DIVIDED_START;
 extern const unsigned int POW_SUBMISSION_LIMIT;
 extern const unsigned int NUM_FINAL_BLOCK_PER_POW;
 extern const unsigned int POW_CHANGE_TO_ADJ_DIFF;
@@ -291,8 +311,10 @@ extern const std::string UPGRADE_HOST_REPO;
 extern const bool RECOVERY_TRIM_INCOMPLETED_BLOCK;
 extern const bool REJOIN_NODE_NOT_IN_NETWORK;
 extern const unsigned int RESUME_BLACKLIST_DELAY_IN_SECONDS;
+extern const unsigned int INCRDB_DSNUMS_WITH_STATEDELTAS;
 
 // Smart contract constants
+extern const bool ENABLE_SC;
 extern const std::string SCILLA_ROOT;
 extern const std::string SCILLA_CHECKER;
 extern const std::string SCILLA_BINARY;
@@ -313,6 +335,9 @@ extern const bool ENABLE_CHECK_PERFORMANCE_LOG;
 extern const unsigned int FALLBACK_TEST_EPOCH;
 #endif  // FALLBACK_TEST
 extern const unsigned int NUM_TXN_TO_SEND_PER_ACCOUNT;
+extern const bool ENABLE_ACCOUNTS_POPULATING;
+extern const unsigned int NUM_ACCOUNTS_PREGENERATE;
+extern const std::string PREGENED_ACCOUNTS_FILE;
 
 // Transaction constants
 extern const boost::multiprecision::uint128_t TOTAL_COINBASE_REWARD;
@@ -327,6 +352,10 @@ extern const unsigned int TXN_MISORDER_TOLERANCE_IN_PERCENT;
 extern const unsigned int PACKET_EPOCH_LATE_ALLOW;
 extern const unsigned int PACKET_BYTESIZE_LIMIT;
 extern const unsigned int SMALL_TXN_SIZE;
+extern const unsigned int ACCOUNT_IO_BATCH_SIZE;
+extern const bool ENABLE_REPOPULATE;
+extern const unsigned int REPOPULATE_STATE_PER_N_DS;
+extern const unsigned int REPOPULATE_STATE_IN_DS;
 
 // Viewchange constants
 extern const unsigned int POST_VIEWCHANGE_BUFFER;

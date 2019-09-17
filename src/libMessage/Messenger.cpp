@@ -23,6 +23,8 @@
 #include "libMessage/ZilliqaMessage.pb.h"
 #include "libUtils/Logger.h"
 
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <algorithm>
 #include <map>
 #include <random>
@@ -396,7 +398,8 @@ void AccountToProtobuf(const Account& account, ProtoAccount& protoAccount) {
   AccountBaseToProtobuf(account, *protoAccountBase);
 
   if (protoAccountBase->has_codehash()) {
-    protoAccount.set_code(account.GetCode().data(), account.GetCode().size());
+    bytes codebytes = account.GetCode();
+    protoAccount.set_code(codebytes.data(), codebytes.size());
     for (const auto& keyHash : account.GetStorageKeyHashes(false)) {
       ProtoAccount::StorageData* entry = protoAccount.add_storage();
       entry->set_keyhash(keyHash.data(), keyHash.size);
@@ -558,7 +561,10 @@ bool ProtobufToAccountDelta(const ProtoAccount& protoAccount, Account& account,
                               : 0 - accbase.GetBalance().convert_to<int256_t>();
   account.ChangeBalance(balanceDelta);
 
-  account.IncreaseNonceBy(accbase.GetNonce());
+  if (!account.IncreaseNonceBy(accbase.GetNonce())) {
+    LOG_GENERAL(WARNING, "IncreaseNonceBy failed");
+    return false;
+  }
 
   if ((protoAccount.has_code() && protoAccount.code().size() > 0) ||
       account.isContract()) {
@@ -4412,12 +4418,59 @@ bool Messenger::SetNodeForwardTxnBlock(
   return SerializeToArray(result, dst, offset);
 }
 
-bool Messenger::GetNodeForwardTxnBlock(const bytes& src,
-                                       const unsigned int offset,
-                                       uint64_t& epochNumber,
-                                       uint64_t& dsBlockNum, uint32_t& shardId,
-                                       PubKey& lookupPubKey,
-                                       std::vector<Transaction>& txns) {
+bool Messenger::SetNodeForwardTxnBlock(bytes& dst, const unsigned int offset,
+                                       const uint64_t& epochNumber,
+                                       const uint64_t& dsBlockNum,
+                                       const uint32_t& shardId,
+                                       const PubKey& lookupKey,
+                                       std::vector<Transaction>& txns,
+                                       const Signature& signature) {
+  LOG_MARKER();
+
+  NodeForwardTxnBlock result;
+
+  result.set_epochnumber(epochNumber);
+  result.set_dsblocknum(dsBlockNum);
+  result.set_shardid(shardId);
+  SerializableToProtobufByteArray(lookupKey, *result.mutable_pubkey());
+
+  unsigned int txnsCount = 0;
+
+  unsigned int msg_size = 0;
+
+  for (const auto& txn : txns) {
+    if (msg_size >= PACKET_BYTESIZE_LIMIT) {
+      break;
+    }
+    ProtoTransaction* protoTxn = new ProtoTransaction();
+    TransactionToProtobuf(txn, *protoTxn);
+    unsigned txn_size = protoTxn->ByteSize();
+    if ((msg_size + txn_size) > PACKET_BYTESIZE_LIMIT &&
+        txn_size >= SMALL_TXN_SIZE) {
+      continue;
+    }
+    *result.add_transactions() = *protoTxn;
+    txnsCount++;
+    msg_size += txn_size;
+  }
+
+  SerializableToProtobufByteArray(signature, *result.mutable_signature());
+
+  if (!result.IsInitialized()) {
+    LOG_GENERAL(WARNING, "NodeForwardTxnBlock initialization failed");
+    return false;
+  }
+
+  LOG_GENERAL(INFO, "Epoch: " << epochNumber << " shardId: " << shardId
+                              << " Txns: " << txnsCount);
+
+  return SerializeToArray(result, dst, offset);
+}
+
+bool Messenger::GetNodeForwardTxnBlock(
+    const bytes& src, const unsigned int offset, uint64_t& epochNumber,
+    uint64_t& dsBlockNum, uint32_t& shardId, PubKey& lookupPubKey,
+    std::vector<Transaction>& txns, Signature& signature) {
   LOG_MARKER();
 
   NodeForwardTxnBlock result;
@@ -4440,7 +4493,6 @@ bool Messenger::GetNodeForwardTxnBlock(const bytes& src,
       LOG_GENERAL(WARNING, "Failed to serialize transactions");
       return false;
     }
-    Signature signature;
     PROTOBUFBYTEARRAYTOSERIALIZABLE(result.signature(), signature);
 
     if (!Schnorr::GetInstance().Verify(tmp, signature, lookupPubKey)) {
@@ -5231,9 +5283,14 @@ bool Messenger::GetLookupSetTxBlockFromSeed(
 
   LookupSetTxBlockFromSeed result;
 
-  result.ParseFromArray(src.data() + offset, src.size() - offset);
+  google::protobuf::io::ArrayInputStream arrayIn(src.data() + offset,
+                                                 src.size() - offset);
+  google::protobuf::io::CodedInputStream codedIn(&arrayIn);
+  codedIn.SetTotalBytesLimit(MAX_READ_WATERMARK_IN_BYTES,
+                             MAX_READ_WATERMARK_IN_BYTES);
 
-  if (!result.IsInitialized()) {
+  if (!result.ParseFromCodedStream(&codedIn) ||
+      !codedIn.ConsumedEntireMessage() || !result.IsInitialized()) {
     LOG_GENERAL(WARNING, "LookupSetTxBlockFromSeed initialization failed");
     return false;
   }
@@ -5277,7 +5334,28 @@ bool Messenger::SetLookupGetStateDeltaFromSeed(bytes& dst,
   result.set_listenport(listenPort);
 
   if (!result.IsInitialized()) {
-    LOG_GENERAL(WARNING, "LookupGetTxBlockFromSeed initialization failed");
+    LOG_GENERAL(WARNING, "LookupGetStateDeltaFromSeed initialization failed");
+    return false;
+  }
+
+  return SerializeToArray(result, dst, offset);
+}
+
+bool Messenger::SetLookupGetStateDeltasFromSeed(bytes& dst,
+                                                const unsigned int offset,
+                                                uint64_t& lowBlockNum,
+                                                uint64_t& highBlockNum,
+                                                const uint32_t listenPort) {
+  LOG_MARKER();
+
+  LookupGetStateDeltasFromSeed result;
+
+  result.set_lowblocknum(lowBlockNum);
+  result.set_highblocknum(highBlockNum);
+  result.set_listenport(listenPort);
+
+  if (!result.IsInitialized()) {
+    LOG_GENERAL(WARNING, "LookupGetStateDeltasFromSeed initialization failed");
     return false;
   }
 
@@ -5295,11 +5373,34 @@ bool Messenger::GetLookupGetStateDeltaFromSeed(const bytes& src,
   result.ParseFromArray(src.data() + offset, src.size() - offset);
 
   if (!result.IsInitialized()) {
-    LOG_GENERAL(WARNING, "LookupGetTxBlockFromSeed initialization failed");
+    LOG_GENERAL(WARNING, "LookupGetStateDeltaFromSeed initialization failed");
     return false;
   }
 
   blockNum = result.blocknum();
+  listenPort = result.listenport();
+
+  return true;
+}
+
+bool Messenger::GetLookupGetStateDeltasFromSeed(const bytes& src,
+                                                const unsigned int offset,
+                                                uint64_t& lowBlockNum,
+                                                uint64_t& highBlockNum,
+                                                uint32_t& listenPort) {
+  LOG_MARKER();
+
+  LookupGetStateDeltasFromSeed result;
+
+  result.ParseFromArray(src.data() + offset, src.size() - offset);
+
+  if (!result.IsInitialized()) {
+    LOG_GENERAL(WARNING, "LookupGetStateDeltasFromSeed initialization failed");
+    return false;
+  }
+
+  lowBlockNum = result.lowblocknum();
+  highBlockNum = result.highblocknum();
   listenPort = result.listenport();
 
   return true;
@@ -5331,7 +5432,7 @@ bool Messenger::SetLookupSetStateDeltaFromSeed(bytes& dst,
 
   if (!Schnorr::GetInstance().Sign(tmp, lookupKey.first, lookupKey.second,
                                    signature)) {
-    LOG_GENERAL(WARNING, "Failed to sign DS blocks");
+    LOG_GENERAL(WARNING, "Failed to sign StateDelta");
     return false;
   }
 
@@ -5339,6 +5440,48 @@ bool Messenger::SetLookupSetStateDeltaFromSeed(bytes& dst,
 
   if (!result.IsInitialized()) {
     LOG_GENERAL(WARNING, "LookupSetStateDeltaFromSeed initialization failed");
+    return false;
+  }
+
+  return SerializeToArray(result, dst, offset);
+}
+
+bool Messenger::SetLookupSetStateDeltasFromSeed(
+    bytes& dst, const unsigned int offset, const uint64_t lowBlockNum,
+    const uint64_t highBlockNum, const PairOfKey& lookupKey,
+    const vector<bytes>& stateDeltas) {
+  LOG_MARKER();
+
+  LookupSetStateDeltasFromSeed result;
+
+  result.mutable_data()->set_lowblocknum(lowBlockNum);
+  result.mutable_data()->set_highblocknum(highBlockNum);
+
+  for (const auto& delta : stateDeltas) {
+    result.mutable_data()->add_statedeltas(delta.data(), delta.size());
+  }
+
+  SerializableToProtobufByteArray(lookupKey.second, *result.mutable_pubkey());
+
+  Signature signature;
+  if (!result.data().IsInitialized()) {
+    LOG_GENERAL(WARNING,
+                "LookupSetStateDeltasFromSeed.Data initialization failed");
+    return false;
+  }
+  bytes tmp(result.data().ByteSize());
+  result.data().SerializeToArray(tmp.data(), tmp.size());
+
+  if (!Schnorr::GetInstance().Sign(tmp, lookupKey.first, lookupKey.second,
+                                   signature)) {
+    LOG_GENERAL(WARNING, "Failed to sign StateDeltas");
+    return false;
+  }
+
+  SerializableToProtobufByteArray(signature, *result.mutable_signature());
+
+  if (!result.IsInitialized()) {
+    LOG_GENERAL(WARNING, "LookupSetStateDeltasFromSeed initialization failed");
     return false;
   }
 
@@ -5376,6 +5519,45 @@ bool Messenger::GetLookupSetStateDeltaFromSeed(const bytes& src,
 
   if (!Schnorr::GetInstance().Verify(tmp, signature, lookupPubKey)) {
     LOG_GENERAL(WARNING, "Invalid signature in state delta");
+    return false;
+  }
+
+  return true;
+}
+
+bool Messenger::GetLookupSetStateDeltasFromSeed(
+    const bytes& src, const unsigned int offset, uint64_t& lowBlockNum,
+    uint64_t& highBlockNum, PubKey& lookupPubKey, vector<bytes>& stateDeltas) {
+  LOG_MARKER();
+
+  LookupSetStateDeltasFromSeed result;
+
+  result.ParseFromArray(src.data() + offset, src.size() - offset);
+
+  if (!result.IsInitialized()) {
+    LOG_GENERAL(WARNING, "LookupSetStateDeltasFromSeed initialization failed");
+    return false;
+  }
+
+  lowBlockNum = result.data().lowblocknum();
+  highBlockNum = result.data().highblocknum();
+  stateDeltas.clear();
+  for (const auto& delta : result.data().statedeltas()) {
+    bytes tmp;
+    tmp.resize(delta.size());
+    std::copy(delta.begin(), delta.end(), tmp.begin());
+    stateDeltas.emplace_back(tmp);
+  }
+
+  bytes tmp(result.data().ByteSize());
+  result.data().SerializeToArray(tmp.data(), tmp.size());
+
+  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.pubkey(), lookupPubKey);
+  Signature signature;
+  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.signature(), signature);
+
+  if (!Schnorr::GetInstance().Verify(tmp, signature, lookupPubKey)) {
+    LOG_GENERAL(WARNING, "Invalid signature in state deltas");
     return false;
   }
 
@@ -5459,9 +5641,14 @@ bool Messenger::GetLookupSetStateFromSeed(const bytes& src,
 
   LookupSetStateFromSeed result;
 
-  result.ParseFromArray(src.data() + offset, src.size() - offset);
+  google::protobuf::io::ArrayInputStream arrayIn(src.data() + offset,
+                                                 src.size() - offset);
+  google::protobuf::io::CodedInputStream codedIn(&arrayIn);
+  codedIn.SetTotalBytesLimit(MAX_READ_WATERMARK_IN_BYTES,
+                             MAX_READ_WATERMARK_IN_BYTES);
 
-  if (!result.IsInitialized()) {
+  if (!result.ParseFromCodedStream(&codedIn) ||
+      !codedIn.ConsumedEntireMessage() || !result.IsInitialized()) {
     LOG_GENERAL(WARNING, "LookupSetStateFromSeed initialization failed");
     return false;
   }
@@ -6453,9 +6640,14 @@ bool Messenger::GetLookupSetDirectoryBlocksFromSeed(
     uint64_t& indexNum, PubKey& pubKey) {
   LookupSetDirectoryBlocksFromSeed result;
 
-  result.ParseFromArray(src.data() + offset, src.size() - offset);
+  google::protobuf::io::ArrayInputStream arrayIn(src.data() + offset,
+                                                 src.size() - offset);
+  google::protobuf::io::CodedInputStream codedIn(&arrayIn);
+  codedIn.SetTotalBytesLimit(MAX_READ_WATERMARK_IN_BYTES,
+                             MAX_READ_WATERMARK_IN_BYTES);
 
-  if (!result.IsInitialized()) {
+  if (!result.ParseFromCodedStream(&codedIn) ||
+      !codedIn.ConsumedEntireMessage() || !result.IsInitialized()) {
     LOG_GENERAL(WARNING,
                 "LookupSetDirectoryBlocksFromSeed initialization failed");
     return false;
@@ -6678,10 +6870,8 @@ bool Messenger::GetConsensusCommit(const bytes& src, const unsigned int offset,
 
 bool Messenger::SetConsensusChallenge(
     bytes& dst, const unsigned int offset, const uint32_t consensusID,
-    const uint64_t blockNumber, const uint16_t subsetID, const bytes& blockHash,
-    const uint16_t leaderID, const CommitPoint& aggregatedCommit,
-    const PubKey& aggregatedKey, const Challenge& challenge,
-    const PairOfKey& leaderKey) {
+    const uint64_t blockNumber, const bytes& blockHash, const uint16_t leaderID,
+    const vector<ChallengeSubsetInfo>& subsetInfo, const PairOfKey& leaderKey) {
   LOG_MARKER();
 
   ConsensusChallenge result;
@@ -6691,14 +6881,17 @@ bool Messenger::SetConsensusChallenge(
   result.mutable_consensusinfo()->set_blockhash(blockHash.data(),
                                                 blockHash.size());
   result.mutable_consensusinfo()->set_leaderid(leaderID);
-  result.mutable_consensusinfo()->set_subsetid(subsetID);
-  SerializableToProtobufByteArray(
-      aggregatedCommit,
-      *result.mutable_consensusinfo()->mutable_aggregatedcommit());
-  SerializableToProtobufByteArray(
-      aggregatedKey, *result.mutable_consensusinfo()->mutable_aggregatedkey());
-  SerializableToProtobufByteArray(
-      challenge, *result.mutable_consensusinfo()->mutable_challenge());
+
+  for (const auto& subset : subsetInfo) {
+    ConsensusChallenge::SubsetInfo* si =
+        result.mutable_consensusinfo()->add_subsetinfo();
+
+    SerializableToProtobufByteArray(subset.aggregatedCommit,
+                                    *si->mutable_aggregatedcommit());
+    SerializableToProtobufByteArray(subset.aggregatedKey,
+                                    *si->mutable_aggregatedkey());
+    SerializableToProtobufByteArray(subset.challenge, *si->mutable_challenge());
+  }
 
   if (!result.consensusinfo().IsInitialized()) {
     LOG_GENERAL(WARNING, "ConsensusChallenge.Data initialization failed");
@@ -6729,9 +6922,8 @@ bool Messenger::SetConsensusChallenge(
 
 bool Messenger::GetConsensusChallenge(
     const bytes& src, const unsigned int offset, const uint32_t consensusID,
-    const uint64_t blockNumber, uint16_t& subsetID, const bytes& blockHash,
-    const uint16_t leaderID, CommitPoint& aggregatedCommit,
-    PubKey& aggregatedKey, Challenge& challenge, const PubKey& leaderKey) {
+    const uint64_t blockNumber, const bytes& blockHash, const uint16_t leaderID,
+    vector<ChallengeSubsetInfo>& subsetInfo, const PubKey& leaderKey) {
   LOG_MARKER();
 
   ConsensusChallenge result;
@@ -6789,14 +6981,16 @@ bool Messenger::GetConsensusChallenge(
     return false;
   }
 
-  subsetID = result.consensusinfo().subsetid();
+  for (const auto& proto_si : result.consensusinfo().subsetinfo()) {
+    ChallengeSubsetInfo si;
 
-  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.consensusinfo().aggregatedcommit(),
-                                  aggregatedCommit);
-  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.consensusinfo().aggregatedkey(),
-                                  aggregatedKey);
-  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.consensusinfo().challenge(),
-                                  challenge);
+    PROTOBUFBYTEARRAYTOSERIALIZABLE(proto_si.aggregatedcommit(),
+                                    si.aggregatedCommit);
+    PROTOBUFBYTEARRAYTOSERIALIZABLE(proto_si.aggregatedkey(), si.aggregatedKey);
+    PROTOBUFBYTEARRAYTOSERIALIZABLE(proto_si.challenge(), si.challenge);
+
+    subsetInfo.emplace_back(si);
+  }
 
   bytes tmp(result.consensusinfo().ByteSize());
   result.consensusinfo().SerializeToArray(tmp.data(), tmp.size());
@@ -6815,9 +7009,8 @@ bool Messenger::GetConsensusChallenge(
 
 bool Messenger::SetConsensusResponse(
     bytes& dst, const unsigned int offset, const uint32_t consensusID,
-    const uint64_t blockNumber, const uint16_t subsetID, const bytes& blockHash,
-    const uint16_t backupID, const Response& response,
-    const PairOfKey& backupKey) {
+    const uint64_t blockNumber, const bytes& blockHash, const uint16_t backupID,
+    const vector<ResponseSubsetInfo>& subsetInfo, const PairOfKey& backupKey) {
   LOG_MARKER();
 
   ConsensusResponse result;
@@ -6827,9 +7020,12 @@ bool Messenger::SetConsensusResponse(
   result.mutable_consensusinfo()->set_blockhash(blockHash.data(),
                                                 blockHash.size());
   result.mutable_consensusinfo()->set_backupid(backupID);
-  result.mutable_consensusinfo()->set_subsetid(subsetID);
-  SerializableToProtobufByteArray(
-      response, *result.mutable_consensusinfo()->mutable_response());
+
+  for (const auto& subset : subsetInfo) {
+    ConsensusResponse::SubsetInfo* si =
+        result.mutable_consensusinfo()->add_subsetinfo();
+    SerializableToProtobufByteArray(subset.response, *si->mutable_response());
+  }
 
   if (!result.consensusinfo().IsInitialized()) {
     LOG_GENERAL(WARNING, "ConsensusResponse.Data initialization failed");
@@ -6861,7 +7057,7 @@ bool Messenger::SetConsensusResponse(
 bool Messenger::GetConsensusResponse(
     const bytes& src, const unsigned int offset, const uint32_t consensusID,
     const uint64_t blockNumber, const bytes& blockHash, uint16_t& backupID,
-    uint16_t& subsetID, Response& response, const DequeOfNode& committeeKeys) {
+    vector<ResponseSubsetInfo>& subsetInfo, const DequeOfNode& committeeKeys) {
   LOG_MARKER();
 
   ConsensusResponse result;
@@ -6922,9 +7118,13 @@ bool Messenger::GetConsensusResponse(
     return false;
   }
 
-  subsetID = result.consensusinfo().subsetid();
+  for (const auto& proto_si : result.consensusinfo().subsetinfo()) {
+    ResponseSubsetInfo si;
 
-  PROTOBUFBYTEARRAYTOSERIALIZABLE(result.consensusinfo().response(), response);
+    PROTOBUFBYTEARRAYTOSERIALIZABLE(proto_si.response(), si.response);
+
+    subsetInfo.emplace_back(si);
+  }
 
   bytes tmp(result.consensusinfo().ByteSize());
   result.consensusinfo().SerializeToArray(tmp.data(), tmp.size());

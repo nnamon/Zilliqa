@@ -33,7 +33,6 @@
 #include "depends/libDatabase/MemoryDB.h"
 #include "depends/libTrie/TrieDB.h"
 #include "depends/libTrie/TrieHash.h"
-#include "libConsensus/ConsensusUser.h"
 #include "libCrypto/Sha2.h"
 #include "libData/AccountData/Account.h"
 #include "libData/AccountData/AccountStore.h"
@@ -55,22 +54,14 @@
 #include "libUtils/TimeLockedFunction.h"
 #include "libUtils/TimeUtils.h"
 #include "libUtils/TimestampVerifier.h"
-#include "libUtils/UpgradeManager.h"
 
 using namespace std;
 using namespace boost::multiprecision;
-
-bool Node::StoreState() {
-  LOG_MARKER();
-  return AccountStore::GetInstance().MoveUpdatesToDisk();
-}
 
 void Node::StoreFinalBlock(const TxBlock& txBlock) {
   LOG_MARKER();
 
   AddBlock(txBlock);
-
-  m_mediator.IncreaseEpochNum();
 
   // At this point, the transactions in the last Epoch is no longer useful, thus
   // erase. EraseCommittedTransactions(m_mediator.m_currentEpochNum - 2);
@@ -82,6 +73,8 @@ void Node::StoreFinalBlock(const TxBlock& txBlock) {
   txBlock.Serialize(serializedTxBlock, 0);
   BlockStorage::GetBlockStorage().PutTxBlock(txBlock.GetHeader().GetBlockNum(),
                                              serializedTxBlock);
+
+  m_mediator.IncreaseEpochNum();
 
   string prevHashStr;
   if (!DataConversion::charArrToHexStr(m_mediator.m_txBlockChain.GetLastBlock()
@@ -336,7 +329,8 @@ void Node::UpdateStateForNextConsensusRound() {
       m_consensusLeaderID =
           lastBlockHash % Guard::GetInstance().GetNumOfDSGuard();
     } else {
-      m_consensusLeaderID = lastBlockHash % m_myShardMembers->size();
+      m_consensusLeaderID = CalculateShardLeaderFromDequeOfNode(
+          lastBlockHash, m_myShardMembers->size(), *m_myShardMembers);
     }
   }
 
@@ -442,7 +436,7 @@ void Node::CallActOnFinalblock() {
       *m_microblock, *m_myShardMembers, {}, {},
       m_mediator.m_lookup->GetLookupNodes(),
       m_mediator.m_txBlockChain.GetLastBlock().GetBlockHash(), m_consensusMyID,
-      composeMBnForwardTxnMessageForSender, SendDataToLookupFuncDefault,
+      composeMBnForwardTxnMessageForSender, false, SendDataToLookupFuncDefault,
       sendMbnFowardTxnToShardNodes);
 }
 
@@ -534,6 +528,13 @@ void Node::PrepareGoodStateForFinalBlock() {
 bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
                              [[gnu::unused]] const Peer& from) {
   LOG_MARKER();
+  return ProcessFinalBlockCore(message, offset, from);
+}
+
+bool Node::ProcessFinalBlockCore(const bytes& message, unsigned int offset,
+                                 [[gnu::unused]] const Peer& from,
+                                 bool buffered) {
+  LOG_MARKER();
 
   uint64_t dsBlockNumber = 0;
   uint32_t consensusID = 0;
@@ -547,8 +548,28 @@ bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
     return false;
   }
 
-  lock_guard<mutex> g(m_mutexFinalBlock);
+  if (LOOKUP_NODE_MODE && ARCHIVAL_LOOKUP && !buffered) {
+    if (m_mediator.m_lookup->GetSyncType() != SyncType::NO_SYNC) {
+      // Buffer the Final Block
+      lock_guard<mutex> g(m_mutexSeedTxnBlksBuffer);
+      m_seedTxnBlksBuffer.push_back(message);
+      LOG_GENERAL(INFO, "Seed not synced, buffered this FBLK");
+      return false;
+    } else {
+      // If seed node is synced and have buffered txn blocks
+      lock_guard<mutex> g(m_mutexSeedTxnBlksBuffer);
+      if (!m_seedTxnBlksBuffer.empty()) {
+        LOG_GENERAL(INFO, "Seed synced, processing buffered FBLKS");
+        for (const auto& txnblk : m_seedTxnBlksBuffer) {
+          ProcessFinalBlockCore(txnblk, offset, Peer(), true);
+        }
+        // clear the buffer since all buffered ones are checked and processed
+        m_seedTxnBlksBuffer.clear();
+      }
+    }
+  }
 
+  lock_guard<mutex> g(m_mutexFinalBlock);
   if (txBlock.GetHeader().GetVersion() != TXBLOCK_VERSION) {
     LOG_CHECK_FAIL("TxBlock version", txBlock.GetHeader().GetVersion(),
                    TXBLOCK_VERSION);
@@ -565,7 +586,7 @@ bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
   if (!VerifyTimestamp(
           txBlock.GetTimestamp(),
           CONSENSUS_OBJECT_TIMEOUT + MICROBLOCK_TIMEOUT +
-              (TX_DISTRIBUTE_TIME_IN_MS + FINALBLOCK_DELAY_IN_MS) / 1000)) {
+              (TX_DISTRIBUTE_TIME_IN_MS + ANNOUNCEMENT_DELAY_IN_MS) / 1000)) {
     return false;
   }
 
@@ -695,6 +716,13 @@ bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
     return false;
   }
 
+  auto resumeBlackList = []() mutable -> void {
+    this_thread::sleep_for(chrono::seconds(RESUME_BLACKLIST_DELAY_IN_SECONDS));
+    Blacklist::GetInstance().Enable(true);
+  };
+
+  DetachedFunction(1, resumeBlackList);
+
   if (!isVacuousEpoch) {
     if (!LoadUnavailableMicroBlockHashes(
             txBlock, txBlock.GetHeader().GetBlockNum(), toSendTxnToLookup)) {
@@ -712,20 +740,25 @@ bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
     // Remove because shard nodes will be shuffled in next epoch.
     CleanMicroblockConsensusBuffer();
 
-    if (!StoreState()) {
-      LOG_GENERAL(WARNING, "StoreState failed, what to do?");
-      return false;
+    if (!AccountStore::GetInstance().MoveUpdatesToDisk(
+            ENABLE_REPOPULATE && (m_mediator.m_dsBlockChain.GetLastBlock()
+                                          .GetHeader()
+                                          .GetBlockNum() %
+                                      REPOPULATE_STATE_PER_N_DS ==
+                                  REPOPULATE_STATE_IN_DS))) {
+      LOG_GENERAL(WARNING, "MoveUpdatesToDisk failed, what to do?");
+      // return false;
     }
-    StoreFinalBlock(txBlock);
     BlockStorage::GetBlockStorage().PutMetadata(MetaType::DSINCOMPLETED, {'0'});
+    StoreFinalBlock(txBlock);
+    LOG_STATE(
+        "[FLBLK]["
+        << setw(15) << left << m_mediator.m_selfPeer.GetPrintableIPAddress()
+        << "]["
+        << m_mediator.m_txBlockChain.GetLastBlock().GetHeader().GetBlockNum() +
+               1
+        << "] FINISH WRITE STATE TO DISK");
   }
-
-  auto resumeBlackList = []() mutable -> void {
-    this_thread::sleep_for(chrono::seconds(RESUME_BLACKLIST_DELAY_IN_SECONDS));
-    Blacklist::GetInstance().Enable(true);
-  };
-
-  DetachedFunction(1, resumeBlackList);
 
   // m_mediator.HeartBeatPulse();
 
@@ -741,19 +774,6 @@ bool Node::ProcessFinalBlock(const bytes& message, unsigned int offset,
   // then I know I'm not), I can start doing PoW again
   m_mediator.UpdateDSBlockRand();
   m_mediator.UpdateTxBlockRand();
-
-  if (isVacuousEpoch) {
-    lock_guard<mutex> g(m_mediator.m_mutexCurSWInfo);
-    if (m_mediator.m_curSWInfo.GetZilliqaUpgradeDS() - 1 ==
-        m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum()) {
-      UpgradeManager::GetInstance().ReplaceNode(m_mediator);
-    }
-
-    if (m_mediator.m_curSWInfo.GetScillaUpgradeDS() - 1 ==
-        m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum()) {
-      UpgradeManager::GetInstance().InstallScilla();
-    }
-  }
 
   if (!LOOKUP_NODE_MODE) {
     if (toSendTxnToLookup) {

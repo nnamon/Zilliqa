@@ -32,7 +32,6 @@
 #include "depends/libDatabase/MemoryDB.h"
 #include "depends/libTrie/TrieDB.h"
 #include "depends/libTrie/TrieHash.h"
-#include "libConsensus/ConsensusUser.h"
 #include "libCrypto/Sha2.h"
 #include "libMediator/Mediator.h"
 #include "libMessage/Messenger.h"
@@ -44,7 +43,6 @@
 #include "libUtils/SanityChecks.h"
 #include "libUtils/TimeLockedFunction.h"
 #include "libUtils/TimeUtils.h"
-#include "libUtils/TimestampVerifier.h"
 
 using namespace std;
 using namespace boost::multiprecision;
@@ -140,7 +138,14 @@ bool Node::ProcessVCBlock(const bytes& message, unsigned int cur_offset,
   }
 
   if (!LOOKUP_NODE_MODE && BROADCAST_TREEBASED_CLUSTER_MODE) {
-    SendVCBlockToOtherShardNodes(message);
+    // Avoid using the original message for broadcasting in case it contains
+    // excess data beyond the VCBlock
+    bytes message2 = {MessageType::NODE, NodeInstructionType::VCBLOCK};
+    if (!Messenger::SetNodeVCBlock(message2, MessageOffset::BODY, vcblock)) {
+      LOG_GENERAL(WARNING, "Messenger::SetNodeVCBlock failed");
+    } else {
+      SendVCBlockToOtherShardNodes(message2);
+    }
   }
 
   LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
@@ -185,13 +190,6 @@ bool Node::ProcessVCBlockCore(const VCBlock& vcblock) {
   if (BlockStorage::GetBlockStorage().GetVCBlock(temp_blockHash, VCBlockptr)) {
     LOG_GENERAL(WARNING,
                 "Duplicated vc block detected. 0x" << temp_blockHash.hex());
-    return false;
-  }
-
-  // Check timestamp
-  if (!VerifyTimestamp(vcblock.GetTimestamp(),
-                       CONSENSUS_OBJECT_TIMEOUT + VIEWCHANGE_TIME +
-                           VIEWCHANGE_PRECHECK_TIME + VIEWCHANGE_EXTRA_TIME)) {
     return false;
   }
 

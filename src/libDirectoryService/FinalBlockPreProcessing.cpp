@@ -212,9 +212,19 @@ bool DirectoryService::RunConsensusOnFinalBlockWhenDSPrimary() {
   LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
             "I am the leader DS node. Creating final block");
 
-  if (!m_mediator.GetIsVacuousEpoch()) {
+  if (!m_mediator.GetIsVacuousEpoch() &&
+      ((m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetDifficulty() >=
+            TXN_SHARD_TARGET_DIFFICULTY &&
+        m_mediator.m_dsBlockChain.GetLastBlock()
+                .GetHeader()
+                .GetDSDifficulty() >= TXN_DS_TARGET_DIFFICULTY) ||
+       m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum() >=
+           TXN_DS_TARGET_NUM)) {
     m_mediator.m_node->ProcessTransactionWhenShardLeader();
-    AccountStore::GetInstance().SerializeDelta();
+    if (!AccountStore::GetInstance().SerializeDelta()) {
+      LOG_GENERAL(WARNING, "AccountStore::SerializeDelta failed");
+      return false;
+    }
   }
   AccountStore::GetInstance().CommitTempRevertible();
 
@@ -265,7 +275,7 @@ bool DirectoryService::RunConsensusOnFinalBlockWhenDSPrimary() {
       m_consensusBlockHash, m_consensusMyID, m_mediator.m_selfKey.first,
       *m_mediator.m_DSCommittee, static_cast<uint8_t>(DIRECTORY),
       static_cast<uint8_t>(FINALBLOCKCONSENSUS), commitErrorFunc,
-      ShardCommitFailureHandlerFunc()));
+      ShardCommitFailureHandlerFunc(), true));
 
   if (m_consensusObject == nullptr) {
     LOG_EPOCH(WARNING, m_mediator.m_currentEpochNum,
@@ -1026,7 +1036,7 @@ bool DirectoryService::RunConsensusOnFinalBlockWhenDSBackup() {
 
   // FIXME: Prechecking not working due at epoch 1 due to the way we have low
   // blocknum
-  if (m_consensusMyID == 3 && dsCurBlockNum != 0 && txCurBlockNum != 0) {
+  if (m_consensusMyID == 3 && dsCurBlockNum != 0 && txCurBlockNum > 10) {
     LOG_EPOCH(
         WARNING, m_mediator.m_currentEpochNum,
         "I am suspending myself to test viewchange (VC_TEST_VC_PRECHECK_2)");
@@ -1034,12 +1044,22 @@ bool DirectoryService::RunConsensusOnFinalBlockWhenDSBackup() {
     return false;
   }
 #endif  // VC_TEST_VC_PRECHECK_2
+  if (!m_mediator.GetIsVacuousEpoch() &&
+      ((m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetDifficulty() >=
+            TXN_SHARD_TARGET_DIFFICULTY &&
+        m_mediator.m_dsBlockChain.GetLastBlock()
+                .GetHeader()
+                .GetDSDifficulty() >= TXN_DS_TARGET_DIFFICULTY) ||
+       m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum() >=
+           TXN_DS_TARGET_NUM)) {
+    m_mediator.m_node->ProcessTransactionWhenShardBackup();
+  }
 
   LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
             "I am a backup DS node. Waiting for final block announcement. "
             "Leader is at index  "
-                << m_consensusLeaderID << " "
-                << m_mediator.m_DSCommittee->at(m_consensusLeaderID).second
+                << GetConsensusLeaderID() << " "
+                << m_mediator.m_DSCommittee->at(GetConsensusLeaderID()).second
                 << " my consensus id is " << m_consensusMyID);
 
   // Create new consensus object
@@ -1058,7 +1078,7 @@ bool DirectoryService::RunConsensusOnFinalBlockWhenDSBackup() {
 
   m_consensusObject.reset(new ConsensusBackup(
       m_mediator.m_consensusID, m_mediator.m_currentEpochNum,
-      m_consensusBlockHash, m_consensusMyID, m_consensusLeaderID,
+      m_consensusBlockHash, m_consensusMyID, GetConsensusLeaderID(),
       m_mediator.m_selfKey.first, *m_mediator.m_DSCommittee,
       static_cast<uint8_t>(DIRECTORY),
       static_cast<uint8_t>(FINALBLOCKCONSENSUS), func));
@@ -1098,8 +1118,7 @@ void DirectoryService::PrepareRunConsensusOnFinalBlockNormal() {
   }
 }
 
-void DirectoryService::RunConsensusOnFinalBlock(
-    RunFinalBlockConsensusOptions options) {
+void DirectoryService::RunConsensusOnFinalBlock() {
   LOG_MARKER();
 
   if (LOOKUP_NODE_MODE) {
@@ -1112,8 +1131,8 @@ void DirectoryService::RunConsensusOnFinalBlock(
   {
     lock_guard<mutex> g(m_mutexRunConsensusOnFinalBlock);
 
-    if (!(m_state == VIEWCHANGE_CONSENSUS ||
-          m_state == MICROBLOCK_SUBMISSION)) {
+    if (!(m_state == VIEWCHANGE_CONSENSUS || m_state == MICROBLOCK_SUBMISSION ||
+          m_state == FINALBLOCK_CONSENSUS_PREP)) {
       LOG_GENERAL(WARNING,
                   "DirectoryService::RunConsensusOnFinalBlock "
                   "is not allowed in current state "
@@ -1133,26 +1152,20 @@ void DirectoryService::RunConsensusOnFinalBlock(
       RejoinAsDS();
     }
 
-    SetState(FINALBLOCK_CONSENSUS_PREP);
+    if (m_state != FINALBLOCK_CONSENSUS_PREP) {
+      SetState(FINALBLOCK_CONSENSUS_PREP);
+    }
 
     m_mediator.m_node->PrepareGoodStateForFinalBlock();
 
-    switch (options) {
-      case NORMAL: {
-        LOG_GENERAL(INFO, "RunConsensusOnFinalBlock NORMAL");
-        PrepareRunConsensusOnFinalBlockNormal();
-        break;
-      }
-      case FROM_VIEWCHANGE:
-      default:
-        break;
-    }
+    LOG_GENERAL(INFO, "RunConsensusOnFinalBlock ");
+    PrepareRunConsensusOnFinalBlockNormal();
 
     // Upon consensus object creation failure, one should not return from the
     // function, but rather wait for view change.
     bool ConsensusObjCreation = true;
     if (m_mode == PRIMARY_DS) {
-      this_thread::sleep_for(chrono::milliseconds(FINALBLOCK_DELAY_IN_MS));
+      this_thread::sleep_for(chrono::milliseconds(ANNOUNCEMENT_DELAY_IN_MS));
       ConsensusObjCreation = RunConsensusOnFinalBlockWhenDSPrimary();
       if (!ConsensusObjCreation) {
         LOG_GENERAL(WARNING,
@@ -1188,6 +1201,15 @@ void DirectoryService::RunConsensusOnFinalBlock(
         std::cv_status::timeout) {
       LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
                 "Initiated final block view change");
+
+      if (m_mode == PRIMARY_DS) {
+        ConsensusLeader* cl =
+            dynamic_cast<ConsensusLeader*>(m_consensusObject.get());
+        if (cl != nullptr) {
+          cl->Audit();
+        }
+      }
+
       auto func2 = [this]() -> void {
         RemoveDSMicroBlock();  // Remove DS microblock from my list of
                                // microblocks

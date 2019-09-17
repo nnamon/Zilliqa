@@ -31,7 +31,6 @@
 #include <shared_mutex>
 #include <vector>
 
-#include "common/Broadcastable.h"
 #include "common/Executable.h"
 #include "libConsensus/Consensus.h"
 #include "libCrypto/Schnorr.h"
@@ -41,7 +40,6 @@
 #include "libLookup/Synchronizer.h"
 #include "libNetwork/DataSender.h"
 #include "libNetwork/P2PComm.h"
-#include "libNetwork/PeerStore.h"
 #include "libNetwork/ShardStruct.h"
 #include "libPersistence/BlockStorage.h"
 #include "libUtils/TimeUtils.h"
@@ -109,7 +107,7 @@ using MapOfPubKeyPoW = std::map<PubKey, PoWSolution>;
 
 /// Implements Directory Service functionality including PoW verification, DS,
 /// Tx Block Consensus and sharding management.
-class DirectoryService : public Executable, public Broadcastable {
+class DirectoryService : public Executable {
   std::chrono::system_clock::time_point m_timespec;
 
   enum Action {
@@ -226,7 +224,7 @@ class DirectoryService : public Executable, public Broadcastable {
                             const Peer& from);
   bool ProcessPoWPacketSubmission(const bytes& message, unsigned int offset,
                                   const Peer& from);
-  bool ProcessPoWSubmissionFromPacket(const DSPowSolution& sol);
+  bool VerifyPoWSubmission(const DSPowSolution& sol);
 
   bool ProcessDSBlockConsensus(const bytes& message, unsigned int offset,
                                const Peer& from);
@@ -289,15 +287,15 @@ class DirectoryService : public Executable, public Broadcastable {
   boost::multiprecision::uint128_t GetIncreasedGasPrice();
   bool VerifyGasPrice(const boost::multiprecision::uint128_t& gasPrice);
 
-  void LookupCoinbase(const DequeOfShard& shards, const MapOfPubKeyPoW& allPow,
-                      const std::map<PubKey, Peer>& powDSWinner,
-                      const MapOfPubKeyPoW& dsPow);
-
   bool VerifyPoWWinner(const MapOfPubKeyPoW& dsWinnerPoWsFromLeader);
   bool VerifyDifficulty();
   bool VerifyPoWOrdering(const DequeOfShard& shards,
-                         const MapOfPubKeyPoW& allPoWsFromLeader);
-  bool VerifyNodePriority(const DequeOfShard& shards);
+                         const MapOfPubKeyPoW& allPoWsFromLeader,
+                         const MapOfPubKeyPoW& priorityNodePoWs);
+  bool VerifyPoWFromLeader(const Peer& peer, const PubKey& pubKey,
+                           const PoWSolution& powSoln);
+  bool VerifyNodePriority(const DequeOfShard& shards,
+                          MapOfPubKeyPoW& priorityNodePoWs);
 
   // internal calls from RunConsensusOnDSBlock
   bool RunConsensusOnDSBlockWhenDSPrimary();
@@ -314,8 +312,7 @@ class DirectoryService : public Executable, public Broadcastable {
   void UpdateMyDSModeAndConsensusId();
   void UpdateDSCommiteeComposition();
 
-  void ProcessDSBlockConsensusWhenDone(const bytes& message,
-                                       unsigned int offset);
+  void ProcessDSBlockConsensusWhenDone();
 
   // internal calls from ProcessFinalBlockConsensus
   bool ComposeFinalBlockMessageForSender(bytes& finalblock_message);
@@ -430,15 +427,11 @@ class DirectoryService : public Executable, public Broadcastable {
 
   uint8_t CalculateNewDifficulty(const uint8_t& currentDifficulty);
   uint8_t CalculateNewDSDifficulty(const uint8_t& dsDifficulty);
-  uint64_t CalculateNumberOfBlocksPerYear() const;
+
+  void ReloadGuardedShards(DequeOfShard& shards);
 
  public:
   enum Mode : unsigned char { IDLE = 0x00, PRIMARY_DS, BACKUP_DS };
-
-  enum RunFinalBlockConsensusOptions : unsigned char {
-    NORMAL = 0x00,
-    FROM_VIEWCHANGE
-  };
 
   enum DirState : unsigned char {
     POW_SUBMISSION = 0x00,
@@ -534,6 +527,9 @@ class DirectoryService : public Executable, public Broadcastable {
   bool m_doRejoinAtDSConsensus = false;
   bool m_doRejoinAtFinalConsensus = false;
 
+  /// Force multicast when sending block to shard
+  std::atomic<bool> m_forceMulticast;
+
   /// Constructor. Requires mediator reference to access Node and other global
   /// members.
   DirectoryService(Mediator& mediator);
@@ -562,10 +558,6 @@ class DirectoryService : public Executable, public Broadcastable {
   /// Start synchronization with lookup as a DS node
   void StartSynchronization();
 
-  /// Implements the GetBroadcastList function inherited from Broadcastable.
-  std::vector<Peer> GetBroadcastList(unsigned char ins_type,
-                                     const Peer& broadcast_originator);
-
   /// Launches separate thread to execute sharding consensus after wait_window
   /// seconds.
   void ScheduleShardingConsensus(const unsigned int wait_window);
@@ -577,7 +569,7 @@ class DirectoryService : public Executable, public Broadcastable {
   /// network
   bool FinishRejoinAsDS();
 
-  void RunConsensusOnFinalBlock(RunFinalBlockConsensusOptions options = NORMAL);
+  void RunConsensusOnFinalBlock();
 
   // Coinbase
   bool SaveCoinbase(const std::vector<bool>& b1, const std::vector<bool>& b2,
@@ -606,10 +598,11 @@ class DirectoryService : public Executable, public Broadcastable {
   void StartNewDSEpochConsensus(bool fromFallback = false,
                                 bool isRejoin = false);
 
-  static uint8_t CalculateNewDifficultyCore(
-      uint8_t currentDifficulty, uint8_t minDifficulty, int64_t powSubmissions,
-      int64_t expectedNodes, uint32_t powChangeoAdj, int64_t currentEpochNum,
-      int64_t numBlockPerYear);
+  static uint8_t CalculateNewDifficultyCore(uint8_t currentDifficulty,
+                                            uint8_t minDifficulty,
+                                            int64_t powSubmissions,
+                                            int64_t expectedNodes,
+                                            uint32_t powChangeoAdj);
 
   /// Calculate node priority to determine which node has the priority to join
   /// the network.
@@ -624,7 +617,7 @@ class DirectoryService : public Executable, public Broadcastable {
                               bool trimBeyondCommSize = false);
   int64_t GetAllPoWSize() const;
 
-  bool ProcessAndSendPoWPacketSubmissionToOtherDSComm();
+  bool SendPoWPacketSubmissionToOtherDSComm();
 
   // Reset certain variables to the initial state
   bool CleanVariables();
@@ -636,9 +629,11 @@ class DirectoryService : public Executable, public Broadcastable {
   void GetEntireNetworkPeerInfo(VectorOfNode& peers,
                                 std::vector<PubKey>& pubKeys);
 
+  std::string GetStateString() const;
+
  private:
   static std::map<DirState, std::string> DirStateStrings;
-  std::string GetStateString() const;
+
   static std::map<Action, std::string> ActionStrings;
   std::string GetActionString(Action action) const;
   bool ValidateViewChangeState(DirState NodeState, DirState StatePropose);

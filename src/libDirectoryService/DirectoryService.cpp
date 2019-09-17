@@ -29,6 +29,7 @@
 #include "libCrypto/Sha2.h"
 #include "libMediator/Mediator.h"
 #include "libMessage/Messenger.h"
+#include "libNetwork/Blacklist.h"
 #include "libNetwork/Guard.h"
 #include "libNetwork/P2PComm.h"
 #include "libPOW/pow.h"
@@ -49,9 +50,10 @@ DirectoryService::DirectoryService(Mediator& mediator) : m_mediator(mediator) {
     cv_POWSubmission.notify_all();
   }
   m_mode = IDLE;
-  m_consensusLeaderID = 0;
+  SetConsensusLeaderID(0);
   m_mediator.m_consensusID = 1;
   m_viewChangeCounter = 0;
+  m_forceMulticast = false;
 }
 
 DirectoryService::~DirectoryService() {}
@@ -160,7 +162,6 @@ bool DirectoryService::ProcessSetPrimary(const bytes& message,
     return false;
   }
 
-  // Peer primary(message, offset);
   Peer primary;
   if (primary.Deserialize(message, offset) != 0) {
     LOG_GENERAL(WARNING, "We failed to deserialize Peer.");
@@ -185,23 +186,12 @@ bool DirectoryService::ProcessSetPrimary(const bytes& message,
     m_mode = BACKUP_DS;
   }
 
-  // For now, we assume the following when ProcessSetPrimary() is called:
-  //  1. All peers in the peer list are my fellow DS committee members for this
-  //  first epoch
-  //  2. The list of DS nodes is sorted by PubKey, including my own
-  //  3. The peer with the smallest PubKey is also the first leader assigned in
-  //  this call to ProcessSetPrimary()
+  // When ProcessSetPrimary() is called, all peers in the peer list are my
+  // fellow DS committee members for this first epoch
 
   // Let's notify lookup node of the DS committee during bootstrap
-  // TODO: Refactor this code
   if (primary == m_mediator.m_selfPeer) {
-    PeerStore& dsstore = PeerStore::GetStore();
-    dsstore.AddPeerPair(
-        m_mediator.m_selfKey.second,
-        m_mediator.m_selfPeer);  // Add myself, but with dummy IP info
-    VectorOfNode ds = dsstore.GetAllPeerPairs();
-    m_mediator.m_DSCommittee->resize(ds.size());
-    copy(ds.begin(), ds.end(), m_mediator.m_DSCommittee->begin());
+    m_mediator.m_lookup->SetDSCommitteInfo();
 
     bytes setDSBootstrapNodeMessage = {
         MessageType::LOOKUP, LookupInstructionType::SETDSINFOFROMSEED};
@@ -216,16 +206,14 @@ bool DirectoryService::ProcessSetPrimary(const bytes& message,
     }
 
     m_mediator.m_lookup->SendMessageToLookupNodes(setDSBootstrapNodeMessage);
+
+    // Reload the DS committee, with my own peer set to dummy
+    m_mediator.m_DSCommittee->clear();
+    m_mediator.m_lookup->SetDSCommitteInfo(true);
+  } else {
+    // Load the DS committee, with my own peer set to dummy
+    m_mediator.m_lookup->SetDSCommitteInfo(true);
   }
-
-  PeerStore& peerstore = PeerStore::GetStore();
-  peerstore.AddPeerPair(m_mediator.m_selfKey.second,
-                        Peer());  // Add myself, but with dummy IP info
-
-  VectorOfNode tmp1 = peerstore.GetAllPeerPairs();
-  m_mediator.m_DSCommittee->resize(tmp1.size());
-  copy(tmp1.begin(), tmp1.end(), m_mediator.m_DSCommittee->begin());
-  peerstore.RemovePeer(m_mediator.m_selfKey.second);  // Remove myself
 
   // Lets start the gossip as earliest as possible
   if (BROADCAST_GOSSIP_MODE) {
@@ -270,16 +258,20 @@ bool DirectoryService::ProcessSetPrimary(const bytes& message,
     m_consensusMyID++;
   }
 
-  m_consensusLeaderID = 0;
+  // Add ds guard to exclude list for ds comm at bootstrap
+  Guard::GetInstance().AddDSGuardToBlacklistExcludeList(
+      *m_mediator.m_DSCommittee);
+
+  SetConsensusLeaderID(0);
   if (m_mediator.m_currentEpochNum > 1) {
     LOG_GENERAL(WARNING, "ProcessSetPrimary called in epoch "
                              << m_mediator.m_currentEpochNum);
-    m_consensusLeaderID =
+    SetConsensusLeaderID(
         DataConversion::charArrTo16Bits(m_mediator.m_dsBlockChain.GetLastBlock()
                                             .GetHeader()
                                             .GetHashForRandom()
                                             .asBytes()) %
-        m_mediator.m_DSCommittee->size();
+        m_mediator.m_DSCommittee->size());
   }
 
   LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
@@ -309,7 +301,7 @@ bool DirectoryService::ProcessSetPrimary(const bytes& message,
 
     // create and send POW submission packets
     auto func = [this]() mutable -> void {
-      this->ProcessAndSendPoWPacketSubmissionToOtherDSComm();
+      this->SendPoWPacketSubmissionToOtherDSComm();
     };
     DetachedFunction(1, func);
 
@@ -396,26 +388,12 @@ void DirectoryService::IncrementConsensusMyID() { m_consensusMyID++; }
 // Set m_consensusLeaderID
 void DirectoryService::SetConsensusLeaderID(uint16_t id) {
   m_consensusLeaderID = id;
+  LOG_STATE("DSConsensusLeaderID = " << m_consensusLeaderID);
 }
 
 // Get m_consensusLeaderID
 uint16_t DirectoryService::GetConsensusLeaderID() const {
   return m_consensusLeaderID.load();
-}
-
-vector<Peer> DirectoryService::GetBroadcastList(
-    [[gnu::unused]] unsigned char ins_type,
-    [[gnu::unused]] const Peer& broadcast_originator) {
-  // LOG_MARKER();
-  if (LOOKUP_NODE_MODE) {
-    LOG_GENERAL(WARNING,
-                "DirectoryService::GetBroadcastList not expected to be "
-                "called from LookUp node.");
-  }
-
-  // Regardless of the instruction type, right now all our "broadcasts" are just
-  // redundant multicasts from DS nodes to non-DS nodes
-  return vector<Peer>();
 }
 
 bool DirectoryService::CleanVariables() {
@@ -473,8 +451,10 @@ bool DirectoryService::CleanVariables() {
   m_sharingAssignment.clear();
   m_viewChangeCounter = 0;
   m_mode = IDLE;
-  m_consensusLeaderID = 0;
+  SetConsensusLeaderID(0);
   m_mediator.m_consensusID = 0;
+
+  m_forceMulticast = false;
 
   return true;
 }
@@ -491,9 +471,23 @@ void DirectoryService::RejoinAsDS() {
   if (m_mediator.m_lookup->GetSyncType() == SyncType::NO_SYNC &&
       m_mode == BACKUP_DS) {
     auto func = [this]() mutable -> void {
-      m_mediator.m_lookup->SetSyncType(SyncType::DS_SYNC);
-      m_mediator.m_node->CleanVariables();
-      m_mediator.m_node->Install(SyncType::DS_SYNC);
+      while (true) {
+        m_mediator.m_lookup->SetSyncType(SyncType::DS_SYNC);
+        m_mediator.m_node->CleanVariables();
+        this->CleanVariables();
+        while (!m_mediator.m_node->DownloadPersistenceFromS3()) {
+          LOG_GENERAL(
+              WARNING,
+              "Downloading persistence from S3 has failed. Will try again!");
+          this_thread::sleep_for(chrono::seconds(RETRY_REJOINING_TIMEOUT));
+        }
+        BlockStorage::GetBlockStorage().RefreshAll();
+        AccountStore::GetInstance().RefreshDB();
+        if (m_mediator.m_node->Install(SyncType::DS_SYNC, true)) {
+          break;
+        }
+        this_thread::sleep_for(chrono::seconds(RETRY_REJOINING_TIMEOUT));
+      }
       this->StartSynchronization();
     };
     DetachedFunction(1, func);
@@ -556,7 +550,7 @@ bool DirectoryService::FinishRejoinAsDS() {
     dsComm = *m_mediator.m_DSCommittee;
   }
 
-  m_consensusLeaderID = 0;
+  SetConsensusLeaderID(0);
 
   const auto& bl = m_mediator.m_blocklinkchain.GetLatestBlockLink();
   PairOfNode dsLeader;
@@ -567,7 +561,7 @@ bool DirectoryService::FinishRejoinAsDS() {
           return pubKeyPeer.second == dsLeader.second;
         });
     if (iterDSLeader != dsComm.end()) {
-      m_consensusLeaderID = iterDSLeader - dsComm.begin();
+      SetConsensusLeaderID(iterDSLeader - dsComm.begin());
     } else {
       LOG_GENERAL(WARNING,
                   "Failed to find DS leader index in DS committee, Invoke "
@@ -620,6 +614,10 @@ void DirectoryService::StartNewDSEpochConsensus(bool fromFallback,
 
   LOG_MARKER();
 
+  if (m_state != POW_SUBMISSION) {
+    SetState(POW_SUBMISSION);
+  }
+
   m_mediator.m_consensusID = 0;
   m_mediator.m_node->SetConsensusLeaderID(0);
 
@@ -629,7 +627,6 @@ void DirectoryService::StartNewDSEpochConsensus(bool fromFallback,
 
   m_mediator.m_node->CleanMicroblockConsensusBuffer();
 
-  SetState(POW_SUBMISSION);
   cv_POWSubmission.notify_all();
 
   POW::GetInstance().EthashConfigureClient(
@@ -668,7 +665,7 @@ void DirectoryService::StartNewDSEpochConsensus(bool fromFallback,
 
     // create and send POW submission packets
     auto func = [this]() mutable -> void {
-      this->ProcessAndSendPoWPacketSubmissionToOtherDSComm();
+      this->SendPoWPacketSubmissionToOtherDSComm();
     };
     DetachedFunction(1, func);
 
@@ -703,7 +700,7 @@ void DirectoryService::StartNewDSEpochConsensus(bool fromFallback,
         // create and send POW submission packets
         LOG_GENERAL(INFO, "m_consensusMyID: " << m_consensusMyID);
         auto func = [this]() mutable -> void {
-          this->ProcessAndSendPoWPacketSubmissionToOtherDSComm();
+          this->SendPoWPacketSubmissionToOtherDSComm();
         };
         DetachedFunction(1, func);
       }
@@ -735,6 +732,19 @@ void DirectoryService::StartNewDSEpochConsensus(bool fromFallback,
   {
     lock_guard<mutex> g(m_mutexPowSolution);
     m_powSolutions.clear();
+  }
+}
+
+void DirectoryService::ReloadGuardedShards(DequeOfShard& shards) {
+  for (const auto& shard : m_shards) {
+    Shard t_shard;
+    for (const auto& node : shard) {
+      if (Guard::GetInstance().IsNodeInShardGuardList(
+              std::get<SHARD_NODE_PUBKEY>(node))) {
+        t_shard.emplace_back(node);
+      }
+    }
+    shards.emplace_back(t_shard);
   }
 }
 
@@ -780,7 +790,7 @@ bool DirectoryService::UpdateDSGuardIdentity() {
 
   vector<Peer> peerInfo;
   {
-    // Gossip to all DS committee
+    // Multicast to all DS committee
     lock_guard<mutex> lock(m_mediator.m_mutexDSCommittee);
     for (auto const& i : *m_mediator.m_DSCommittee) {
       if (i.second.m_listenPortHost != 0) {
@@ -789,26 +799,7 @@ bool DirectoryService::UpdateDSGuardIdentity() {
     }
   }
 
-  if (BROADCAST_GOSSIP_MODE) {
-    // Choose N DS nodes to be recipient ds guard network info update message
-    // TODO: changge to N ds nodes who co-sign on the ds block
-    std::vector<Peer> networkInfoUpdateReceivers;
-    unsigned int numOfNetworkInfoReceivers =
-        std::min(NUM_GOSSIP_RECEIVERS, (unsigned int)peerInfo.size());
-
-    for (unsigned int i = 0; i < numOfNetworkInfoReceivers; i++) {
-      networkInfoUpdateReceivers.emplace_back(peerInfo.at(i));
-
-      LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
-                "networkInfoUpdateReceivers: " << peerInfo.at(i));
-    }
-
-    P2PComm::GetInstance().SendRumorToForeignPeers(
-        networkInfoUpdateReceivers, updatedsguardidentitymessage);
-
-  } else {
-    P2PComm::GetInstance().SendMessage(peerInfo, updatedsguardidentitymessage);
-  }
+  P2PComm::GetInstance().SendMessage(peerInfo, updatedsguardidentitymessage);
 
   m_awaitingToSubmitNetworkInfoUpdate = false;
 
@@ -878,6 +869,13 @@ bool DirectoryService::ProcessNewDSGuardNetworkInfo(
          indexOfDSGuard++) {
       if (m_mediator.m_DSCommittee->at(indexOfDSGuard).first == dsGuardPubkey) {
         foundDSGuardNode = true;
+
+        Blacklist::GetInstance().RemoveExclude(
+            m_mediator.m_DSCommittee->at(indexOfDSGuard).second.m_ipAddress);
+        LOG_GENERAL(INFO,
+                    "Removed "
+                        << m_mediator.m_DSCommittee->at(indexOfDSGuard).second
+                        << " from blacklist exclude list")
         LOG_GENERAL(INFO,
                     "[update ds guard] DS guard to be updated is at index "
                         << indexOfDSGuard << " "
@@ -885,6 +883,13 @@ bool DirectoryService::ProcessNewDSGuardNetworkInfo(
                         << " -> " << dsGuardNewNetworkInfo);
         m_mediator.m_DSCommittee->at(indexOfDSGuard).second =
             dsGuardNewNetworkInfo;
+
+        if (GUARD_MODE) {
+          Blacklist::GetInstance().Exclude(dsGuardNewNetworkInfo.m_ipAddress);
+          LOG_GENERAL(INFO, "Added ds guard " << dsGuardNewNetworkInfo
+                                              << " to blacklist exclude list");
+        }
+
         break;
       }
     }
@@ -1017,10 +1022,9 @@ uint8_t DirectoryService::CalculateNewDifficulty(
                 << std::to_string(currentDifficulty) << ", expectedNodes "
                 << EXPECTED_SHARD_NODE_NUM << ", powSubmissions "
                 << powSubmissions);
-  return CalculateNewDifficultyCore(
-      currentDifficulty, POW_DIFFICULTY, powSubmissions,
-      EXPECTED_SHARD_NODE_NUM, POW_CHANGE_TO_ADJ_DIFF,
-      m_mediator.m_currentEpochNum, CalculateNumberOfBlocksPerYear());
+  return CalculateNewDifficultyCore(currentDifficulty, POW_DIFFICULTY,
+                                    powSubmissions, EXPECTED_SHARD_NODE_NUM,
+                                    POW_CHANGE_TO_ADJ_DIFF);
 }
 
 uint8_t DirectoryService::CalculateNewDSDifficulty(
@@ -1032,18 +1036,21 @@ uint8_t DirectoryService::CalculateNewDSDifficulty(
                             << ", NUM_DS_ELECTION " << NUM_DS_ELECTION
                             << ", dsPowSubmissions " << dsPowSubmissions);
 
-  return CalculateNewDifficultyCore(
-      dsDifficulty, DS_POW_DIFFICULTY, dsPowSubmissions, NUM_DS_ELECTION,
-      POW_CHANGE_TO_ADJ_DS_DIFF, m_mediator.m_currentEpochNum,
-      CalculateNumberOfBlocksPerYear());
+  return CalculateNewDifficultyCore(dsDifficulty, DS_POW_DIFFICULTY,
+                                    dsPowSubmissions, NUM_DS_ELECTION,
+                                    POW_CHANGE_TO_ADJ_DS_DIFF);
 }
 
-uint8_t DirectoryService::CalculateNewDifficultyCore(
-    uint8_t currentDifficulty, uint8_t minDifficulty, int64_t powSubmissions,
-    int64_t expectedNodes, uint32_t powChangeoAdj, int64_t currentEpochNum,
-    int64_t numBlockPerYear) {
-  constexpr int8_t MAX_ADJUST_STEP = 2;
-  constexpr uint8_t MAX_INCREASE_DIFFICULTY_YEARS = 10;
+uint8_t DirectoryService::CalculateNewDifficultyCore(uint8_t currentDifficulty,
+                                                     uint8_t minDifficulty,
+                                                     int64_t powSubmissions,
+                                                     int64_t expectedNodes,
+                                                     uint32_t powChangeoAdj) {
+  int8_t MAX_ADJUST_STEP = 2;
+  if (currentDifficulty >= POW_BOUNDARY_N_DIVIDED_START) {
+    minDifficulty = POW_BOUNDARY_N_DIVIDED_START - 2;
+    MAX_ADJUST_STEP = POW_BOUNDARY_N_DIVIDED;
+  }
 
   int64_t adjustment = 0;
   if (expectedNodes > 0 && expectedNodes != powSubmissions) {
@@ -1068,35 +1075,10 @@ uint8_t DirectoryService::CalculateNewDifficultyCore(
     adjustment = -MAX_ADJUST_STEP;
   }
 
-  uint8_t newDifficulty = std::max((uint8_t)(adjustment + currentDifficulty),
-                                   (uint8_t)(minDifficulty));
-
-  // Within 10 years, every year increase the difficulty by one.
-  if (currentEpochNum / numBlockPerYear <= MAX_INCREASE_DIFFICULTY_YEARS &&
-      currentEpochNum % numBlockPerYear == 0) {
-    LOG_GENERAL(INFO, "At one year epoch " << currentEpochNum
-                                           << ", increase difficulty by 1.");
-    ++newDifficulty;
-  }
-  return newDifficulty;
-}
-
-uint64_t DirectoryService::CalculateNumberOfBlocksPerYear() const {
-  // Every year, always increase the difficulty by 1, to encourage miners to
-  // upgrade the hardware over time. If POW_WINDOW_IN_SECONDS +
-  // POWPACKETSUBMISSION_WINDOW_IN_SECONDS = 300, NUM_FINAL_BLOCK_PER_POW = 50,
-  // TX_DISTRIBUTE_TIME_IN_MS = 10000, FINALBLOCK_DELAY_IN_MS = 3000, estimated
-  // blocks in a year is 1971000.
-  uint64_t estimatedBlocksOneYear =
-      365 * 24 * 3600 /
-      (((POW_WINDOW_IN_SECONDS + POWPACKETSUBMISSION_WINDOW_IN_SECONDS) /
-        NUM_FINAL_BLOCK_PER_POW) +
-       ((TX_DISTRIBUTE_TIME_IN_MS + FINALBLOCK_DELAY_IN_MS) / 1000));
-
-  // Round to integral multiple of NUM_FINAL_BLOCK_PER_POW
-  estimatedBlocksOneYear = (estimatedBlocksOneYear / NUM_FINAL_BLOCK_PER_POW) *
-                           NUM_FINAL_BLOCK_PER_POW;
-  return estimatedBlocksOneYear;
+  int16_t newDifficulty = (int16_t)adjustment + (int16_t)currentDifficulty;
+  newDifficulty =
+      std::min(newDifficulty, (int16_t)std::numeric_limits<uint8_t>::max());
+  return std::max((uint8_t)(newDifficulty), (uint8_t)(minDifficulty));
 }
 
 int64_t DirectoryService::GetAllPoWSize() const {

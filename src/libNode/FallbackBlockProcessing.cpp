@@ -290,15 +290,38 @@ bool Node::ProcessFallbackBlock(const bytes& message, unsigned int cur_offset,
                                      *m_mediator.m_DSCommittee,
                                      m_mediator.m_ds->m_shards);
     }
-    StoreState();
+
+    auto writeStateToDisk = [this]() mutable -> void {
+      if (!AccountStore::GetInstance().MoveUpdatesToDisk()) {
+        LOG_GENERAL(WARNING, "MoveUpdatesToDisk failed, what to do?");
+        return;
+      }
+      BlockStorage::GetBlockStorage().PutMetadata(MetaType::DSINCOMPLETED,
+                                                  {'0'});
+      LOG_STATE("[FLBLK][" << setw(15) << left
+                           << m_mediator.m_selfPeer.GetPrintableIPAddress()
+                           << "]["
+                           << m_mediator.m_txBlockChain.GetLastBlock()
+                                      .GetHeader()
+                                      .GetBlockNum() +
+                                  1
+                           << "] FINISH WRITE STATE TO DISK");
+    };
+    DetachedFunction(1, writeStateToDisk);
   }
 
   if (!LOOKUP_NODE_MODE) {
     if (BROADCAST_TREEBASED_CLUSTER_MODE) {
-      SendFallbackBlockToOtherShardNodes(message);
+      // Avoid using the original message for broadcasting in case it contains
+      // excess data beyond the FallbackBlock
+      bytes message2 = {MessageType::NODE, NodeInstructionType::FALLBACKBLOCK};
+      if (!Messenger::SetNodeFallbackBlock(message2, MessageOffset::BODY,
+                                           fallbackblock)) {
+        LOG_GENERAL(WARNING, "Messenger::SetNodeFallbackBlock failed");
+      } else {
+        SendFallbackBlockToOtherShardNodes(message2);
+      }
     }
-
-    BlockStorage::GetBlockStorage().PutMetadata(MetaType::DSINCOMPLETED, {'0'});
 
     // Clean processedTxn may have been produced during last microblock
     // consensus

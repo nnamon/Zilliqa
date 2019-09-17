@@ -293,12 +293,12 @@ void DirectoryService::RunConsensusOnViewChange() {
     }
   }
 
-  Blacklist::GetInstance().Clear();
+  // Blacklist::GetInstance().Clear();
 
   uint16_t faultyLeaderIndex;
   m_viewChangeCounter += 1;
   if (m_viewChangeCounter == 1) {
-    faultyLeaderIndex = m_consensusLeaderID;
+    faultyLeaderIndex = GetConsensusLeaderID();
   } else {
     faultyLeaderIndex = m_candidateLeaderIndex;
   }
@@ -377,6 +377,14 @@ void DirectoryService::ScheduleViewChangeTimeout() {
       std::cv_status::timeout) {
     LOG_EPOCH(WARNING, m_mediator.m_currentEpochNum,
               "Initiated view change again");
+
+    if (m_mode == PRIMARY_DS) {
+      ConsensusLeader* cl =
+          dynamic_cast<ConsensusLeader*>(m_consensusObject.get());
+      if (cl != nullptr) {
+        cl->Audit();
+      }
+    }
 
     auto func = [this]() -> void { RunConsensusOnViewChange(); };
     DetachedFunction(1, func);
@@ -506,7 +514,7 @@ uint16_t DirectoryService::CalculateNewLeaderIndex() {
         lastBlockHash % Guard::GetInstance().GetNumOfDSGuard();
   }
 
-  while (candidateLeaderIndex == m_consensusLeaderID) {
+  while (candidateLeaderIndex == GetConsensusLeaderID()) {
     LOG_GENERAL(INFO,
                 "Computed candidate leader is current faulty ds leader. Index: "
                     << candidateLeaderIndex);
@@ -633,7 +641,7 @@ bool DirectoryService::RunConsensusOnViewChangeWhenCandidateLeader(
       m_consensusMyID, m_mediator.m_selfKey.first, *m_mediator.m_DSCommittee,
       static_cast<uint8_t>(DIRECTORY),
       static_cast<uint8_t>(VIEWCHANGECONSENSUS), NodeCommitFailureHandlerFunc(),
-      ShardCommitFailureHandlerFunc()));
+      ShardCommitFailureHandlerFunc(), true));
 
   if (m_consensusObject == nullptr) {
     LOG_EPOCH(WARNING, m_mediator.m_currentEpochNum,

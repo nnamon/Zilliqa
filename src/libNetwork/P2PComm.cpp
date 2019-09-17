@@ -35,7 +35,6 @@
 
 #include "Blacklist.h"
 #include "P2PComm.h"
-#include "PeerStore.h"
 #include "common/Messages.h"
 #include "libCrypto/Sha2.h"
 #include "libUtils/DataConversion.h"
@@ -57,7 +56,6 @@ const unsigned int GOSSIP_ROUND_LEN = 4;
 const unsigned int GOSSIP_SNDR_LISTNR_PORT_LEN = 4;
 
 P2PComm::Dispatcher P2PComm::m_dispatcher;
-P2PComm::BroadcastListFunc P2PComm::m_broadcast_list_retriever;
 
 /// Comparison operator for ordering the list of message hashes.
 struct hash_compare {
@@ -259,7 +257,7 @@ bool SendJob::SendMessageSocketCore(const Peer& peer, const bytes& message,
 
     if (HASH_LEN != writeMsg(&msg_hash.at(0), cli_sock, peer, HASH_LEN)) {
       LOG_GENERAL(WARNING, "Wrong message hash length.");
-      return false;
+      return true;
     }
 
     length -= HASH_LEN;
@@ -275,21 +273,26 @@ void SendJob::SendMessageCore(const Peer& peer, const bytes message,
                               unsigned char startbyte, const bytes hash) {
   uint32_t retry_counter = 0;
   while (!SendMessageSocketCore(peer, message, startbyte, hash)) {
-    retry_counter++;
-    LOG_GENERAL(WARNING, "Socket connect failed " << retry_counter << "/"
-                                                  << MAXRETRYCONN
-                                                  << ". IP address: " << peer);
-
-    if (P2PComm::IsHostHavingNetworkIssue()) {
+    // comment this since we already check this in SendMessageSocketCore() and
+    // also add to blacklist
+    /*if (P2PComm::IsHostHavingNetworkIssue()) {
       LOG_GENERAL(WARNING, "[blacklist] Encountered "
                                << errno << " (" << std::strerror(errno)
                                << "). Adding " << peer.GetPrintableIPAddress()
                                << " to blacklist");
       Blacklist::GetInstance().Add(peer.m_ipAddress);
       return;
+    }*/
+
+    if (Blacklist::GetInstance().Exist(peer.m_ipAddress)) {
+      return;
     }
 
-    if (retry_counter > MAXRETRYCONN) {
+    LOG_GENERAL(WARNING, "Socket connect failed " << retry_counter << "/"
+                                                  << MAXRETRYCONN
+                                                  << ". IP address: " << peer);
+
+    if (++retry_counter > MAXRETRYCONN) {
       LOG_GENERAL(WARNING,
                   "Socket connect failed over " << MAXRETRYCONN << " times.");
       return;
@@ -361,9 +364,7 @@ void P2PComm::ClearBroadcastHashAsync(const bytes& message_hash) {
   m_broadcastToRemove.emplace_back(message_hash, chrono::system_clock::now());
 }
 
-/*static*/ void P2PComm::ProcessBroadCastMsg(bytes& message,
-                                             const uint32_t messageLength,
-                                             const Peer& from) {
+void P2PComm::ProcessBroadCastMsg(bytes& message, const Peer& from) {
   bytes msg_hash(message.begin() + HDR_LEN,
                  message.begin() + HDR_LEN + HASH_LEN);
 
@@ -396,20 +397,6 @@ void P2PComm::ClearBroadcastHashAsync(const bytes& message_hash) {
     // We already sent and/or received this message before -> discard
     LOG_GENERAL(INFO, "Discarding duplicate");
     return;
-  }
-
-  unsigned char msg_type = 0xFF;
-  unsigned char ins_type = 0xFF;
-  if (messageLength - HASH_LEN > MessageOffset::INST) {
-    msg_type = message.at(HDR_LEN + HASH_LEN + MessageOffset::TYPE);
-    ins_type = message.at(HDR_LEN + HASH_LEN + MessageOffset::INST);
-  }
-
-  vector<Peer> broadcast_list =
-      m_broadcast_list_retriever(msg_type, ins_type, from);
-
-  if (broadcast_list.size() > 0) {
-    p2p.RebroadcastMessage(broadcast_list, message, msg_hash);
   }
 
   p2p.ClearBroadcastHashAsync(msg_hash);
@@ -595,7 +582,7 @@ void P2PComm::EventCallback(struct bufferevent* bev, short events,
       return;
     }
 
-    ProcessBroadCastMsg(message, messageLength, from);
+    ProcessBroadCastMsg(message, from);
   } else if (startByte == START_BYTE_NORMAL) {
     LOG_PAYLOAD(INFO, "Incoming normal " << from, message,
                 Logger::MAX_BYTES_TO_DISPLAY);
@@ -711,8 +698,8 @@ inline bool P2PComm::IsHostHavingNetworkIssue() {
           errno == ECONNREFUSED);
 }
 
-void P2PComm::StartMessagePump(uint32_t listen_port_host, Dispatcher dispatcher,
-                               BroadcastListFunc broadcast_list_retriever) {
+void P2PComm::StartMessagePump(uint32_t listen_port_host,
+                               Dispatcher dispatcher) {
   LOG_MARKER();
 
   // Launch the thread that reads messages from the send queue
@@ -728,7 +715,6 @@ void P2PComm::StartMessagePump(uint32_t listen_port_host, Dispatcher dispatcher,
   DetachedFunction(1, funcCheckSendQueue);
 
   m_dispatcher = dispatcher;
-  m_broadcast_list_retriever = broadcast_list_retriever;
 
   struct sockaddr_in serv_addr;
   memset(&serv_addr, 0, sizeof(struct sockaddr_in));
@@ -881,25 +867,6 @@ void P2PComm::SendBroadcastMessage(const deque<Peer>& peers,
 
   lock_guard<mutex> guard(m_broadcastHashesMutex);
   m_broadcastHashes.insert(hashCopy);
-}
-
-void P2PComm::RebroadcastMessage(const vector<Peer>& peers,
-                                 const bytes& message, const bytes& msg_hash) {
-  LOG_MARKER();
-
-  // Make job
-  SendJob* job = new SendJobPeers<vector<Peer>>;
-  dynamic_cast<SendJobPeers<vector<Peer>>*>(job)->m_peers = peers;
-  job->m_selfPeer = Peer();
-  job->m_startbyte = START_BYTE_BROADCAST;
-  copy(message.begin() + HDR_LEN + HASH_LEN, message.end(),
-       back_inserter(job->m_message));
-  job->m_hash = msg_hash;
-
-  // Queue job
-  if (!m_sendQueue.bounded_push(job)) {
-    LOG_GENERAL(WARNING, "SendQueue is full");
-  }
 }
 
 void P2PComm::SendMessageNoQueue(const Peer& peer, const bytes& message,

@@ -30,7 +30,6 @@
 #include "libUtils/DataConversion.h"
 #include "libUtils/DetachedFunction.h"
 #include "libUtils/Logger.h"
-#include "libUtils/UpgradeManager.h"
 
 using namespace std;
 
@@ -191,12 +190,26 @@ void Node::ProcessFallbackConsensusWhenDone() {
     }
 
     AccountStore::GetInstance().InitTemp();
-    StoreState();
 
-    if (!LOOKUP_NODE_MODE) {
+    auto writeStateToDisk = [this]() mutable -> void {
+      if (!AccountStore::GetInstance().MoveUpdatesToDisk()) {
+        LOG_GENERAL(WARNING, "MoveUpdatesToDisk failed, what to do?");
+        return;
+      }
       BlockStorage::GetBlockStorage().PutMetadata(MetaType::DSINCOMPLETED,
                                                   {'0'});
-    }
+      LOG_STATE("[FLBLK][" << setw(15) << left
+                           << m_mediator.m_selfPeer.GetPrintableIPAddress()
+                           << "]["
+                           << m_mediator.m_txBlockChain.GetLastBlock()
+                                      .GetHeader()
+                                      .GetBlockNum() +
+                                  1
+                           << "] FINISH WRITE STATE TO DISK");
+    };
+    DetachedFunction(1, writeStateToDisk);
+
+    SetState(POW_SUBMISSION);
 
     // Detach a thread, Pending for POW Submission and RunDSBlockConsensus
     auto func = [this]() -> void {
@@ -221,19 +234,6 @@ void Node::ProcessFallbackConsensusWhenDone() {
         m_mediator.m_lookup->GetLookupNodes(),
         m_mediator.m_txBlockChain.GetLastBlock().GetBlockHash(),
         m_consensusMyID, composeFallbackBlockMessageForSender);
-  }
-
-  if (m_mediator.GetIsVacuousEpoch()) {
-    lock_guard<mutex> g(m_mediator.m_mutexCurSWInfo);
-    if (m_mediator.m_curSWInfo.GetZilliqaUpgradeDS() - 1 ==
-        m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum()) {
-      UpgradeManager::GetInstance().ReplaceNode(m_mediator);
-    }
-
-    if (m_mediator.m_curSWInfo.GetScillaUpgradeDS() - 1 ==
-        m_mediator.m_dsBlockChain.GetLastBlock().GetHeader().GetBlockNum()) {
-      UpgradeManager::GetInstance().InstallScilla();
-    }
   }
 }
 
@@ -305,6 +305,12 @@ bool Node::ProcessFallbackConsensus(const bytes& message, unsigned int offset,
   }
 
   lock_guard<mutex> g(m_mutexConsensus);
+
+  if (!CheckState(PROCESS_FALLBACKCONSENSUS)) {
+    LOG_EPOCH(INFO, m_mediator.m_currentEpochNum,
+              "Not in PROCESS_FALLBACKCONSENSUS state");
+    return false;
+  }
 
   if (!m_consensusObject->ProcessMessage(message, offset, from)) {
     return false;

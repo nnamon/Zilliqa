@@ -18,23 +18,18 @@
 #ifndef __ZILLIQA_H__
 #define __ZILLIQA_H__
 
-#include <jsonrpccpp/server/connectors/httpserver.h>
 #include <vector>
 
-#include "libConsensus/ConsensusUser.h"
 #include "libDirectoryService/DirectoryService.h"
 #include "libLookup/Lookup.h"
 #include "libMediator/Mediator.h"
 #include "libNetwork/Peer.h"
-#include "libNetwork/PeerManager.h"
-#include "libNetwork/PeerStore.h"
 #include "libNode/Node.h"
 #include "libServer/Server.h"
 #include "libUtils/ThreadPool.h"
 
 /// Main Zilliqa class.
 class Zilliqa {
-  PeerManager m_pm;
   Mediator m_mediator;
   DirectoryService m_ds;
   Lookup m_lookup;
@@ -44,8 +39,8 @@ class Zilliqa {
   // usage
   boost::lockfree::queue<std::pair<bytes, Peer>*> m_msgQueue;
 
-  jsonrpc::HttpServer m_httpserver;
-  Server m_server;
+  std::unique_ptr<Server> m_server;
+  std::unique_ptr<jsonrpc::AbstractServerConnector> m_serverConnector;
 
   ThreadPool m_queuePool{MAXMESSAGE, "QueuePool"};
 
@@ -53,8 +48,8 @@ class Zilliqa {
 
  public:
   /// Constructor.
-  Zilliqa(const PairOfKey& key, const Peer& peer, bool loadConfig,
-          unsigned int syncType = SyncType::NO_SYNC,
+  Zilliqa(const PairOfKey& key, const Peer& peer,
+          SyncType syncType = SyncType::NO_SYNC,
           bool toRetrieveHistory = false);
 
   /// Destructor.
@@ -64,12 +59,6 @@ class Zilliqa {
 
   /// Forwards an incoming message for processing by the appropriate subclass.
   void Dispatch(std::pair<bytes, Peer>* message);
-
-  /// Returns a list of broadcast peers based on the specified message and
-  /// instruction types.
-  std::vector<Peer> RetrieveBroadcastList(unsigned char msg_type,
-                                          unsigned char ins_type,
-                                          const Peer& from);
 
   static std::string FormatMessageName(unsigned char msgType,
                                        unsigned char instruction);

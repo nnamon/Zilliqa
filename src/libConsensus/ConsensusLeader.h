@@ -26,7 +26,6 @@
 
 #include "ConsensusCommon.h"
 #include "libCrypto/MultiSig.h"
-#include "libNetwork/PeerStore.h"
 #include "libUtils/TimeLockedFunction.h"
 
 typedef std::function<bool(const bytes& errorMsg, const Peer& from)>
@@ -54,13 +53,16 @@ class ConsensusLeader : public ConsensusCommon {
   unsigned int m_numForConsensus;
   unsigned int m_numForConsensusFailure;
 
+  bool m_DS;
+  unsigned int m_numOfSubsets;
   // Received commits
   std::mutex m_mutex;
   std::atomic<unsigned int> m_commitCounter;
 
   std::mutex m_mutexAnnounceSubsetConsensus;
   std::condition_variable cv_scheduleSubsetConsensus;
-  bool m_allCommitsReceived;
+  bool m_sufficientCommitsReceived;
+  unsigned int m_sufficientCommitsNumForSubsets;
 
   std::vector<bool> m_commitMap;
   std::vector<CommitPoint>
@@ -105,27 +107,29 @@ class ConsensusLeader : public ConsensusCommon {
   bool CheckStateSubset(uint16_t subsetID, Action action);
   void SetStateSubset(uint16_t subsetID, State newState);
   void GenerateConsensusSubsets();
-  void StartConsensusSubsets();
+  bool StartConsensusSubsets();
   void SubsetEnded(uint16_t subsetID);
   bool ProcessMessageCommitCore(const bytes& commit, unsigned int offset,
                                 Action action,
                                 ConsensusMessageType returnmsgtype,
-                                State nextstate);
-  bool ProcessMessageCommit(const bytes& commit, unsigned int offset);
+                                State nextstate, const Peer& from);
+  bool ProcessMessageCommit(const bytes& commit, unsigned int offset,
+                            const Peer& from);
   bool ProcessMessageCommitFailure(const bytes& commitFailureMsg,
                                    unsigned int offset, const Peer& from);
-  bool GenerateChallengeMessage(bytes& challenge, unsigned int offset,
-                                uint16_t subsetID);
+  bool GenerateChallengeMessage(bytes& challenge, unsigned int offset);
   bool ProcessMessageResponseCore(const bytes& response, unsigned int offset,
                                   Action action,
                                   ConsensusMessageType returnmsgtype,
-                                  State nextstate);
-  bool ProcessMessageResponse(const bytes& response, unsigned int offset);
+                                  State nextstate, const Peer& from);
+  bool ProcessMessageResponse(const bytes& response, unsigned int offset,
+                              const Peer& from);
   bool GenerateCollectiveSigMessage(bytes& collectivesig, unsigned int offset,
                                     uint16_t subsetID);
-  bool ProcessMessageFinalCommit(const bytes& finalcommit, unsigned int offset);
+  bool ProcessMessageFinalCommit(const bytes& finalcommit, unsigned int offset,
+                                 const Peer& from);
   bool ProcessMessageFinalResponse(const bytes& finalresponse,
-                                   unsigned int offset);
+                                   unsigned int offset, const Peer& from);
 
  public:
   /// Constructor.
@@ -143,8 +147,8 @@ class ConsensusLeader : public ConsensusCommon {
       unsigned char ins_byte,        // instruction byte representing consensus
                                      // messages for the Executable class
       NodeCommitFailureHandlerFunc nodeCommitFailureHandlerFunc,
-      ShardCommitFailureHandlerFunc shardCommitFailureHandlerFunc);
-
+      ShardCommitFailureHandlerFunc shardCommitFailureHandlerFunc,
+      bool isDS = false);
   /// Destructor.
   ~ConsensusLeader();
 
@@ -158,6 +162,9 @@ class ConsensusLeader : public ConsensusCommon {
                       const Peer& from);
 
   unsigned int GetNumForConsensusFailure() { return m_numForConsensusFailure; }
+
+  /// Function to check for missing responses
+  void Audit();
 
  private:
   static std::map<Action, std::string> ActionStrings;

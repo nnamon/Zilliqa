@@ -63,6 +63,15 @@ Peer GenerateRandomPeer() {
   return Peer(ip_address, listen_port_host);
 }
 
+vector<bool> GenerateRandomBooleanVector(size_t n) {
+  vector<bool> vec;
+  for (uint i = 0; i < n; i++) {
+    auto randNum = DistUint32();
+    vec.emplace_back((randNum % 2 == 0));
+  }
+  return vec;
+}
+
 Peer GenerateRandomPeer(uint8_t bit_i, bool setreset) {
   uint128_t ip_address = DistUint32();
   uint32_t listen_port_host = DistUint32();
@@ -183,6 +192,20 @@ FallbackBlockHeader GenerateRandomFallbackBlockHeader() {
                              prevHash);
 }
 
+DSBlockHeader createDSBlockHeader(const uint64_t& blockNum) {
+  return DSBlockHeader(DistUint8(), DistUint8(), GenerateRandomPubKey(),
+                       blockNum, DistUint64(), DistUint128(), SWInfo(),
+                       map<PubKey, Peer>(), DSBlockHashSet(), DistUint32(),
+                       CommitteeHash(), BlockHash());
+}
+
+TxBlockHeader createTxBlockHeader(const uint64_t& blockNum) {
+  return TxBlockHeader(DistUint64(), DistUint64(), DistUint128(), blockNum,
+                       TxBlockHashSet(), DistUint32(), GenerateRandomPubKey(),
+                       DistUint64(), DistUint32(), CommitteeHash(),
+                       BlockHash());
+}
+
 DequeOfNode GenerateRandomDSCommittee(uint32_t size) {
   DequeOfNode ds_c;
   for (uint32_t i = 1; i <= size; i++) {
@@ -232,18 +255,16 @@ bytes GenerateRandomCharVector(size_t length) {
   return cv;
 }
 
-Signature GetSignature(const bytes& data, const PrivKey& privkey,
-                       const PubKey& pubkey) {
+Signature GetSignature(const bytes& data, const PairOfKey& keyPair) {
   Signature result;
 
-  Schnorr::GetInstance().Sign(data, privkey, pubkey, result);
+  Schnorr::GetInstance().Sign(data, keyPair.first, keyPair.second, result);
   return result;
 }
 
 Signature GenerateRandomSignature() {
   PairOfKey kp = GenerateRandomKeyPair();
-  return GetSignature(GenerateRandomCharVector(Dist1to99()), kp.first,
-                      kp.second);
+  return GetSignature(GenerateRandomCharVector(Dist1to99()), kp);
 }
 
 }  // namespace TestUtils

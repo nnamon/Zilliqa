@@ -26,7 +26,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/Broadcastable.h"
 #include "common/Constants.h"
 #include "common/Executable.h"
 #include "depends/common/FixedHash.h"
@@ -39,14 +38,13 @@
 #include "libLookup/Synchronizer.h"
 #include "libNetwork/DataSender.h"
 #include "libNetwork/P2PComm.h"
-#include "libNetwork/PeerStore.h"
 #include "libPersistence/BlockStorage.h"
 
 class Mediator;
 class Retriever;
 
 /// Implements PoW submission and sharding node functionality.
-class Node : public Executable, public Broadcastable {
+class Node : public Executable {
   enum Action {
     STARTPOW = 0x00,
     PROCESS_DSBLOCK,
@@ -86,6 +84,9 @@ class Node : public Executable, public Broadcastable {
   // Sharding information
   std::atomic<uint32_t> m_numShards;
 
+  // pre-generated addresses
+  std::vector<Address> m_populatedAddresses;
+
   // Consensus variables
   std::mutex m_mutexProcessConsensusMessage;
   std::condition_variable cv_processConsensusMessage;
@@ -102,6 +103,10 @@ class Node : public Executable, public Broadcastable {
   std::mutex m_mutexCVWaitDSBlock;
   std::condition_variable cv_waitDSBlock;
 
+  // Final Block Buffer for seed node
+  std::vector<bytes> m_seedTxnBlksBuffer;
+  std::mutex m_mutexSeedTxnBlksBuffer;
+
   // Persistence Retriever
   std::shared_ptr<Retriever> m_retriever;
 
@@ -116,7 +121,7 @@ class Node : public Executable, public Broadcastable {
   std::atomic<bool> m_txn_distribute_window_open;
   std::mutex m_mutexCreatedTransactions;
   TxnPool m_createdTxns, t_createdTxns;
-  std::vector<TxnHash> m_txnsOrdering;
+  std::vector<TxnHash> m_expectedTranOrdering;
   std::mutex m_mutexProcessedTransactions;
   std::unordered_map<uint64_t,
                      std::unordered_map<TxnHash, TransactionWithReceipt>>
@@ -199,7 +204,6 @@ class Node : public Executable, public Broadcastable {
   bool IsMicroBlockTxRootHashInFinalBlock(const MBnForwardedTxnEntry& entry,
                                           bool& isEveryMicroBlockAvailable);
 
-  bool StoreState();
   // void StoreMicroBlocks();
   void StoreFinalBlock(const TxBlock& txBlock);
   void InitiatePoW();
@@ -231,6 +235,8 @@ class Node : public Executable, public Broadcastable {
                                       const Peer& from);
   bool ProcessFinalBlock(const bytes& message, unsigned int offset,
                          const Peer& from);
+  bool ProcessFinalBlockCore(const bytes& message, unsigned int offset,
+                             const Peer& from, bool buffered = false);
   bool ProcessMBnForwardTransaction(const bytes& message,
                                     unsigned int cur_offset, const Peer& from);
   bool ProcessMBnForwardTransactionCore(const MBnForwardedTxnEntry& entry);
@@ -288,7 +294,8 @@ class Node : public Executable, public Broadcastable {
   bool CheckMicroBlockTranReceiptHash();
 
   void NotifyTimeout(bool& txnProcTimeout);
-  bool VerifyTxnsOrdering(const std::vector<TxnHash>& tranHashes);
+  bool VerifyTxnsOrdering(const std::vector<TxnHash>& tranHashes,
+                          std::vector<TxnHash>& missingtranHashes);
 
   // Fallback Consensus
   void FallbackTimerLaunch();
@@ -420,7 +427,8 @@ class Node : public Executable, public Broadcastable {
   ~Node();
 
   /// Install the Node
-  bool Install(const SyncType syncType, const bool toRetrieveHistory = true);
+  bool Install(const SyncType syncType, const bool toRetrieveHistory = true,
+               bool rejoiningAfterRecover = false);
 
   // Reset certain variables to the initial state
   bool CleanVariables();
@@ -440,14 +448,14 @@ class Node : public Executable, public Broadcastable {
   /// Implements the Execute function inherited from Executable.
   bool Execute(const bytes& message, unsigned int offset, const Peer& from);
 
-  /// Implements the GetBroadcastList function inherited from Broadcastable.
-  std::vector<Peer> GetBroadcastList(unsigned char ins_type,
-                                     const Peer& broadcast_originator);
-
   Mediator& GetMediator() { return m_mediator; }
 
+  /// Download peristence from incremental db
+  bool DownloadPersistenceFromS3();
+
   /// Recover the previous state by retrieving persistence data
-  bool StartRetrieveHistory(const SyncType syncType, bool& wakeupForUpgrade);
+  bool StartRetrieveHistory(const SyncType syncType,
+                            bool rejoiningAfterRecover = false);
 
   bool ValidateDB();
 
@@ -473,6 +481,12 @@ class Node : public Executable, public Broadcastable {
 
   void CleanCreatedTransaction();
 
+  void AddBalanceToGenesisAccount();
+
+  void PopulateAccounts();
+
+  void UpdateBalanceForPreGeneratedAccounts();
+
   void AddToMicroBlockConsensusBuffer(uint32_t consensusId,
                                       const bytes& message, unsigned int offset,
                                       const Peer& peer,
@@ -482,9 +496,7 @@ class Node : public Executable, public Broadcastable {
   void CallActOnFinalblock();
 
   void ProcessTransactionWhenShardLeader();
-  bool ProcessTransactionWhenShardBackup(
-      const std::vector<TxnHash>& tranHashes,
-      std::vector<TxnHash>& missingtranHashes);
+  void ProcessTransactionWhenShardBackup();
   bool ComposeMicroBlock();
   bool CheckMicroBlockValidity(bytes& errorMsg);
   bool OnNodeMissingTxns(const bytes& errorMsg, const unsigned int offset,
@@ -564,6 +576,13 @@ class Node : public Executable, public Broadcastable {
   bool IsShardNode(const PubKey& pubKey);
   bool IsShardNode(const Peer& peerInfo);
 
+  uint32_t CalculateShardLeaderFromDequeOfNode(uint16_t lastBlockHash,
+                                               uint32_t sizeOfShard,
+                                               const DequeOfNode& shardMembers);
+  uint32_t CalculateShardLeaderFromShard(uint16_t lastBlockHash,
+                                         uint32_t sizeOfShard,
+                                         const Shard& shardMembers);
+
   static bool GetDSLeader(const BlockLink& lastBlockLink,
                           const DSBlock& latestDSBlock,
                           const DequeOfNode& dsCommittee, PairOfNode& dsLeader);
@@ -572,9 +591,11 @@ class Node : public Executable, public Broadcastable {
   void GetEntireNetworkPeerInfo(VectorOfNode& peers,
                                 std::vector<PubKey>& pubKeys);
 
+  std::string GetStateString() const;
+
  private:
   static std::map<NodeState, std::string> NodeStateStrings;
-  std::string GetStateString() const;
+
   static std::map<Action, std::string> ActionStrings;
   std::string GetActionString(Action action) const;
   /// Fallback Consensus Related

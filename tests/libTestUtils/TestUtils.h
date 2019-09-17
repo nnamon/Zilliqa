@@ -26,7 +26,13 @@
 #include <tuple>
 #include "common/BaseType.h"
 #include "libCrypto/Schnorr.h"
-#include "libData/BlockData/Block.h"
+#include "libData/BlockData/Block/BlockBase.h"
+#include "libData/BlockData/BlockHeader/BlockHashSet.h"
+#include "libData/BlockData/BlockHeader/DSBlockHeader.h"
+#include "libData/BlockData/BlockHeader/FallbackBlockHeader.h"
+#include "libData/BlockData/BlockHeader/MicroBlockHeader.h"
+#include "libData/BlockData/BlockHeader/TxBlockHeader.h"
+#include "libData/BlockData/BlockHeader/VCBlockHeader.h"
 #include "libNetwork/Peer.h"
 
 static std::mt19937 rng;
@@ -59,11 +65,15 @@ MicroBlockHeader GenerateRandomMicroBlockHeader();
 TxBlockHeader GenerateRandomTxBlockHeader();
 VCBlockHeader GenerateRandomVCBlockHeader();
 FallbackBlockHeader GenerateRandomFallbackBlockHeader();
+DSBlockHeader createDSBlockHeader(const uint64_t&);
+TxBlockHeader createTxBlockHeader(const uint64_t&);
 CoSignatures GenerateRandomCoSignatures();
-Signature GetSignature(const bytes&, const PrivKey&, const PubKey&);
+Signature GetSignature(const bytes&, const PairOfKey&);
 Signature GenerateRandomSignature();
 
 DequeOfNode GenerateRandomDSCommittee(uint32_t);
+
+std::vector<bool> GenerateRandomBooleanVector(size_t);
 
 Shard GenerateRandomShard(size_t);
 DequeOfShard GenerateDequeueOfShard(size_t);
